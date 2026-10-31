@@ -184,21 +184,25 @@ def _register_routes(app):
         if request.method == "POST" and request.endpoint != "sso_callback":
             _check_csrf()
 
-    def _enter(user):
+    def _enter(user, next_path=None):
         _log_in(user)
-        return redirect(url_for("home" if db.character_summary(user["id"]) else "new_character"))
+        return redirect(next_path or url_for("home" if db.character_summary(user["id"]) else "new_character"))
 
     # The first portfolio login here asks whether to link an account the player already has or make a new one,
     # so it waits in the session until they choose.
-    def portfolio_login(account):
+    def portfolio_login(account, next_path):
         user = db.get_user_by_portfolio(account["sub"])
         if user is not None:
-            return _enter(user)
+            return _enter(user, next_path)
         session.clear()
         session["portfolio_pending"] = {**account, "expires": time.time() + PORTFOLIO_CHOICE_SECONDS}
         return redirect(url_for("link_account"))
 
-    portfolio_sso.add_flask_routes(app, "space-online", portfolio_login)
+    def portfolio_error(reason):
+        flash(portfolio_sso.LOGIN_MESSAGES[reason], "error")
+        return redirect(url_for("login"))
+
+    portfolio_sso.add_flask_routes(app, "space-online", portfolio_login, portfolio_error)
 
     @app.route("/link-account", methods=["GET", "POST"])
     def link_account():

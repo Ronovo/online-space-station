@@ -118,11 +118,41 @@ def test_portfolio_accounts_have_no_usable_password(portfolio, app):
     assert res.status_code == 200 and b"Incorrect username or password" in res.data
 
 
+def test_a_linked_account_returns_to_the_page_it_came_from(portfolio, app):
+    client = app.test_client()
+    portfolio_login(client, "7")
+    post(client, "/link-account", action="new")
+    post(client, "/logout")
+
+    query = parse_qs(urlsplit(client.get("/sso/login?next=/play").location).query)
+    res = client.post("/sso/callback", data={"state": query["state"][0], "token": issue("7")})
+    assert res.status_code == 302 and res.location == "/play"
+    assert username(client) == "player7"
+
+
+def test_a_first_login_ignores_next(portfolio, client):
+    query = parse_qs(urlsplit(client.get("/sso/login?next=/play").location).query)
+    res = client.post("/sso/callback", data={"state": query["state"][0], "token": issue("8")})
+    assert res.status_code == 302 and res.location.endswith("/link-account")
+
+
+def refused(client, res):
+    assert res.status_code == 302 and res.location.endswith("/login")
+    assert username(client) is None
+    return client.get("/login").data
+
+
 @pytest.mark.parametrize("token", [issue("1", aud="casino"), issue("1", expires_in=-10)])
 def test_bad_tokens_are_refused(portfolio, client, token):
-    assert portfolio_login(client, "1", token).status_code == 400
+    assert b"That portfolio login didn&#39;t check out. Try again." in refused(client, portfolio_login(client, "1", token))
 
 
 def test_callback_needs_the_state_from_this_browser(portfolio, client):
     client.get("/sso/login")
-    assert client.post("/sso/callback", data={"state": "wrong", "token": issue("1")}).status_code == 400
+    res = client.post("/sso/callback", data={"state": "wrong", "token": issue("1")})
+    assert b"Your portfolio login expired. Try again." in refused(client, res)
+
+
+def test_callback_without_a_login_in_progress_is_expired(portfolio, client):
+    res = client.post("/sso/callback", data={"state": "any", "token": issue("1")})
+    assert b"Your portfolio login expired. Try again." in refused(client, res)
