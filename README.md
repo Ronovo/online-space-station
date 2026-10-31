@@ -138,8 +138,30 @@ python -m pytest
 ```
 
 The tests cover accounts, password resets, portfolio login, character creation, playing and saving, and the
-core game rules (jobs, door access, inventory). `requirements-dev.txt` includes `requirements.txt`, which the
-portfolio login tests need.
+game itself: every room and station, items and hands, crew movement, jail, power, oxygen, the stock market,
+botany and the hallway events. `requirements-dev.txt` includes `requirements.txt`, which the portfolio login tests
+need.
+
+The page scripts in `space_online/webapp/static/` have their own tests in `tests/js`, run with Vitest on Node.js
+after `npm install` once:
+
+```sh
+npm test
+```
+
+## Coverage
+
+```sh
+python -m coverage run -m pytest
+python -m coverage report
+python -m coverage html
+npm run coverage
+```
+
+The HTML reports go to `coverage/python` and `coverage/js`, and the coverage commands fail below 100%. The Docker
+image builds both reports and serves them at `/coverage/`, under the landing page in `coverage-index/`, the
+`ronovos-coverage-index` submodule, with this repo's `coverage-reports.json`. Failing tests or low coverage don't
+stop the image build; the reports show what is missing.
 
 ## Project layout
 
@@ -147,12 +169,15 @@ portfolio login tests need.
 run_server.py            Starts the game with Flask's built-in server
 space_online/webapp/     Flask app: routes, accounts, SQLite storage, templates, static files
 space_online/game/       The game itself: station map, rooms, items, crew, jobs, power, market
-tests/                   pytest suite
+tests/                   pytest suite; js/ holds the page scripts' Vitest tests
+coverage-index/          The test coverage landing page, the ronovos-coverage-index submodule
+coverage-reports.json    This repo's entry for that page: its name and reports
 instance/                Created on first run: the database and secret key (not committed)
 docker/git-sync.sh       Updates the container from GitHub on start
 Dockerfile
 requirements.txt         Flask, PyJWT and ronovo-portfolio-auth (portfolio login, security questions, login lock)
-requirements-dev.txt     Adds pytest
+requirements-dev.txt     Adds pytest and coverage
+package.json             The page scripts' test tools (Vitest, jsdom)
 ```
 
 ## Station Layout

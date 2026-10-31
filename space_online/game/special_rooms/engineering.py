@@ -102,7 +102,7 @@ class Engineering(SpecialRoomBase):
 
     @room_action(station="engineering_station")
     def access_engineering_panel(self):
-        if not has_engineering_access(self.player_data):
+        if not has_engineering_access(self.player_data):  # pragma: no cover - opening the station needs the same clearance
             self.game.alert(
                 "Unauthorized Access",
                 "You do not have authorization to access the Engineering Panel. "

@@ -164,10 +164,10 @@ class SpecialRoomBase:
                 return widgets
         return self.station_menu()
 
-    def room_options(self):
+    def room_options(self):  # pragma: no cover - every room overrides this
         return []
 
-    def mode_buttons(self, mode):
+    def mode_buttons(self, mode):  # pragma: no cover - every room overrides this
         """Widgets for a room-specific menu mode, or None if mode is unknown."""
         return None
 

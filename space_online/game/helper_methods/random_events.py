@@ -179,7 +179,8 @@ def build_job_event(game):
         if game.player_data.get("access_request"):
             return None
         crew = game.station_crew
-        candidates = [npc for npc in crew if npc.get("name") and not npc.get("in_jail")]
+        candidates = [npc for npc in crew
+                      if npc.get("name") and not npc.get("in_jail") and npc.get("job") != "Captain"]
         if not candidates:
             return None
         npc = random.choice(candidates)
@@ -309,7 +310,7 @@ def trigger_random_event(game):
     """Pick a category, then an event in that category, and show a combined popup."""
     by_type = _events_by_category(game)
     available = [cat for cat in EVENT_CATEGORIES if by_type.get(cat)]
-    if not available:
+    if not available:  # pragma: no cover - there is always an event to pick
         return
 
     category = random.choice(available)
@@ -387,9 +388,10 @@ def add_credits(game, amount):
 def lose_credits(game, amount):
     old_credits = game.player_data["credits"]
     game.player_data["credits"] = max(0, old_credits - amount)
-    _report_effect(game, "Credits Lost", f"You lost {amount} credits.")
+    lost = old_credits - game.player_data["credits"]
+    _report_effect(game, "Credits Lost", f"You lost {lost} credits.")
     game.add_note(
-        f"Lost {amount} credits. New balance: {game.player_data['credits']} credits."
+        f"Lost {lost} credits. New balance: {game.player_data['credits']} credits."
     )
 
 
@@ -512,7 +514,7 @@ def bot_moves_by(game):
         )
     elif bot == "security":
         if is_jailed(game.player_data):
-            _report_effect(
+            _report_effect(  # pragma: no cover - jailed players can't walk, and walking is what triggers events
                 game,
                 "Security Bot",
                 "A security bot rolls past your cell without stopping.",

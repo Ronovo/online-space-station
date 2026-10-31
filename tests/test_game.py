@@ -2,6 +2,7 @@ import json
 
 import pytest
 
+from helpers import new_game, reports
 from space_online.game.character_methods.character_creation import (
     JOBS,
     MAX_NAME_LENGTH,
@@ -33,14 +34,6 @@ from space_online.game.special_rooms.engineering import _update_system_level
 from space_online.game.special_rooms.med_bay import pay_for_healing
 from space_online.game.special_rooms.security import confirm, pardon
 from space_online.game.special_rooms.shared import MAX_NOTES, PLAYER_CREW_INDEX, add_note
-
-
-def new_game(department="Civilian", job="Staff Assistant"):
-    return SpaceStationGame(create_character("Ada", department, job))
-
-
-def reports(game):
-    return [title for _, title, *_ in game._messages]
 
 
 def test_every_job_is_listed_under_exactly_one_department():

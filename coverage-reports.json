@@ -1,0 +1,10 @@
+{
+  "title": "Space Station Explorer",
+  "source": "https://github.com/Ronovo/online-space-station",
+  "reports": [
+    { "label": "Python server", "path": "python/", "summary": "status.json", "functions": "functions.json", "format": "coverage.py",
+      "about": "space_online/, the game and the web app, measured with coverage.py" },
+    { "label": "JavaScript client", "path": "js/", "summary": "coverage-summary.json", "format": "istanbul",
+      "about": "space_online/webapp/static/, the page scripts, measured with Vitest" }
+  ]
+}

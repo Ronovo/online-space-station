@@ -102,7 +102,7 @@ def collect_station_status(player_data, station_crew):
             fine_details.append(
                 {
                     "name": name,
-                    "reason": f"{reason} ({fine_amount} cr)",
+                    "reason": f"{reason} ({fine_amount:.0f} cr)",
                     "kind": "fine",
                 }
             )

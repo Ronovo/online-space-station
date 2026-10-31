@@ -3,6 +3,9 @@
 .venv
 **/__pycache__
 .pytest_cache
+node_modules
+coverage
+.coverage
 instance
 Dockerfile
 .dockerignore

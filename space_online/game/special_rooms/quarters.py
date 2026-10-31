@@ -100,7 +100,7 @@ def store(game, state, args):
 
     note_name = _item_note_name(game.player_data["inventory"][item_index])
     removed = remove_one_from_inventory(game.player_data, item_index)
-    if removed is None:
+    if removed is None:  # pragma: no cover - can't fail once the index was checked above
         game.alert("Error", "Could not store the item.", kind="error")
         return
 

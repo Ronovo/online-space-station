@@ -149,9 +149,9 @@ class Bridge(SpecialRoomBase):
         whose = f"{requester}'s" if for_crew else "your"
         if random.random() < 0.5:
             ok, solar_activated, error = apply_access_request_job(self.game, job)
-            if not ok:
+            if error:
                 self.game.alert("Head of Personnel", error)
-            else:
+            elif ok:
                 now = f"{requester} is now {job}." if for_crew else f"You are now {job}."
                 self.game.alert("Head of Personnel",
                                 f"The HoP approved {whose} request. {now}{_approved_suffix(solar_activated)}")
@@ -202,10 +202,12 @@ def _activate_solar_for_engineer(game, job):
     return True
 
 
-def apply_access_request_job(game, job):
-    """Apply a pending access request to the player or requesting NPC.
+def apply_access_request_job(game, job, confirmed=False):
+    """Apply a pending access request to the player or requesting NPC, under the Job Assignments rules for
+    the Captain.
 
-    Returns (ok, solar_activated, error_message).
+    Returns (ok, solar_activated, error_message). Not ok with no message means the player was asked to
+    confirm giving up the captaincy first.
     """
     player_data = game.player_data
     if job not in REQUESTABLE_JOBS:
@@ -220,13 +222,33 @@ def apply_access_request_job(game, job):
         player_data.pop("access_request", None)
         if npc is None:
             return False, False, "The requester is no longer on the station. Request cleared."
+        if npc.get("job") == "Captain" and not _player_is_captain(player_data):
+            return False, False, "Only the Captain can reassign the current Captain. Request cleared."
         _grant_job(npc, job)
         reassign_npc_post(npc, job)
         return True, _activate_solar_for_engineer(game, job), None
 
+    if not confirmed and player_data.get("job") == "Captain" and not _npc_captain_exists(game):
+        game.ask(
+            "Confirm Reassignment",
+            "You are about to give up captain access with no captain. Continue?",
+            [("Yes", "confirm_access_request", {"job": job}), ("No", None, None)],
+        )
+        return False, False, None
+
     _grant_job(player_data, job)
     player_data.pop("access_request", None)
     return True, _activate_solar_for_engineer(game, job), None
+
+
+@choice_handler("confirm_access_request")
+def confirm_access_request(game, job):
+    request = pending_access_request(game.player_data)
+    if request != {"requested_job": job, "requester_name": game.player_data.get("name")}:
+        return
+    _, solar_activated, _ = apply_access_request_job(game, job, confirmed=True)
+    game.close_panel("hop_console")
+    game.alert("Access Control", f"You are now {job}.{_approved_suffix(solar_activated)}")
 
 
 @register_panel("access_request", "Access Control")
@@ -288,8 +310,10 @@ def approve(game, state, args):
         return
     job = req["requested_job"]
     ok, solar_activated, error = apply_access_request_job(game, job)
-    if not ok:
+    if error:
         set_feedback(state, error, "red", seconds=None)
+        return
+    if not ok:
         return
     game.close_panel("hop_console")
     game.alert("Access Control",
@@ -397,7 +421,7 @@ def assign(game, state, args):
         return
 
     member = member_for_crew_index(crew_index, game.player_data, game.station_crew)
-    if not player_is_captain and crew_index != PLAYER_CREW_INDEX and member.get("job") == "Captain":
+    if not player_is_captain and crew_index != PLAYER_CREW_INDEX and member.get("job") == "Captain":  # pragma: no cover - a non-Captain is never offered the Captain's row
         set_feedback(state, "Only the Captain can reassign the current Captain.", "orange")
         return
 
@@ -433,7 +457,7 @@ def assign_role(game, crew_index, job):
     solar_activated = _activate_solar_for_engineer(game, job)
 
     state = game.top_panel()
-    if state is None or state["type"] != "job_assignment":
+    if state is None or state["type"] != "job_assignment":  # pragma: no cover - an NPC is only assigned from the Job Assignment panel
         return
     state["result_color"] = "lightgreen"
     feedback = f"Assigned {member.get('name', 'Unknown')} as {job}."

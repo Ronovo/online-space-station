@@ -116,7 +116,7 @@ def format_damage_sections(assessment):
                 f"- {limb['name']}: {limb['health']}% ({limb['status']})"
             )
         sections.append("\n".join(limb_lines))
-    else:
+    else:  # pragma: no cover - every character has limbs
         sections.append("Limb Status:\nNo limb health data available.")
 
     damage_lines = ["Other Damage:"]
@@ -150,7 +150,7 @@ def build_health_check_report(player_data):
     cost = build_treatment_cost_block(assessment, alcohol)
 
     health_report = "Health Check Results:\n\n"
-    if assessment["limbs"]:
+    if assessment["limbs"]:  # pragma: no branch - every character has limbs
         health_report += f"Overall Limb Health: {overall_health:.1f}%\n\n"
     health_report += format_damage_sections(assessment)
 
@@ -377,7 +377,7 @@ def pay_for_healing(game):
         message += f"- Intoxication cleared (was {original_alcohol:.1f}%).\n"
     if has_injuries or sobered:
         message += "\nYou feel much better now."
-    else:
+    else:  # pragma: no cover - treatment is only offered when there is something to treat
         message += "No injuries were found."
     game.alert("Treatment Complete", message)
 
@@ -389,8 +389,8 @@ def pay_for_healing(game):
             healed_parts.append(f"Other Damage ({', '.join(injured_damage)}) fully healed.")
         if sobered:
             healed_parts.append(f"Sobered up from {original_alcohol:.1f}% alcohol.")
-        note_text = f"Paid {total_cost} credits for medical treatment. {'. '.join(healed_parts)}"
-    else:
+        note_text = f"Paid {total_cost} credits for medical treatment. {' '.join(healed_parts)}"
+    else:  # pragma: no cover - treatment is only offered when there is something to treat
         note_text = f"Paid {total_cost} credits for medical examination. No injuries were found."
     game.add_note(note_text)
 

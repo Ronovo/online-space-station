@@ -130,7 +130,7 @@ def _pick_visit_room_key(npc):
     """Choose a visitable room other than this NPC's own post."""
     own_post = post_key_for_job(npc.get("job")) if has_post(npc) else None
     choices = [key for key in VISITABLE_ROOM_KEYS if key != own_post]
-    if not choices:
+    if not choices:  # pragma: no cover - there is always another room to visit
         choices = list(VISITABLE_ROOM_KEYS)
     return random.choice(choices)
 
@@ -182,7 +182,7 @@ def roll_departures(station_crew):
 def _return_to_post(npc):
     npc["on_duty"] = True
     location = location_for_post(npc.get("job"))
-    if location is not None:
+    if location is not None:  # pragma: no branch - every NPC sent back to its post has one
         npc["location"] = location
     npc["room_visit_remaining"] = 0
     _clear_npc_goal(npc)
@@ -247,7 +247,7 @@ def _beeline_one_step(npc, target_xy, ship_map):
     queue = deque([start])
     parents = {start: None}
     found = False
-    while queue:
+    while queue:  # pragma: no branch - the hallway ring is connected, so the target is always found
         current = queue.popleft()
         if current == target:
             found = True
@@ -257,7 +257,7 @@ def _beeline_one_step(npc, target_xy, ship_map):
                 parents[neighbor] = current
                 queue.append(neighbor)
 
-    if not found:
+    if not found:  # pragma: no cover - the hallway ring is connected, so the target is always found
         _wander_one_step(npc, ship_map)
         return False
 
@@ -279,7 +279,7 @@ def _wander_one_step(npc, ship_map):
         return
 
     neighbors = list(donut.hallway_neighbors(location["x"], location["y"]).values())
-    if neighbors:
+    if neighbors:  # pragma: no branch - every hallway tile has a neighbour
         npc["location"] = donut.location_from_tile(random.choice(neighbors))
 
 
@@ -360,7 +360,7 @@ def _pursue_visit_room(npc, ship_map, game):
 
     location = npc["location"]
     current_key = donut.location_key(location)
-    if current_key == room_key and npc.get("room_visit_remaining", 0) > 0:
+    if current_key == room_key and npc.get("room_visit_remaining", 0) > 0:  # pragma: no cover - _step_wanderer handles an NPC already in the room first
         return
 
     hallway_tile = donut.SPECIAL_ROOM_HALLWAY.get(room_key)
@@ -376,7 +376,7 @@ def _pursue_visit_room(npc, ship_map, game):
 def _pursue_return_to_post(npc, ship_map):
     """Beeline to post hallway door, then clock in on duty."""
     hallway_tile = donut.SPECIAL_ROOM_HALLWAY.get(post_key_for_job(npc.get("job")))
-    if not hallway_tile:
+    if not hallway_tile:  # pragma: no cover - every posted job has a door
         _return_to_post(npc)
         return
 

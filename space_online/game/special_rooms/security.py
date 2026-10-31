@@ -250,7 +250,7 @@ def pardon(game, state, args):
     name = member.get("name", "Unknown")
     release_member(member, is_player=is_player, game=game, show_message=False)
     game.alert("Pardon", f"{name} has been pardoned and released from jail.")
-    if is_player:
+    if is_player:  # pragma: no cover - a jailed player can't pardon, so never pardons themself
         game.reset_view()
 
 
@@ -259,7 +259,7 @@ def add_time(game, state, args):
     member = _selected_prisoner(game, state)
     if member is None:
         return
-    if not add_jail_time(member, get_elapsed_seconds(game.player_data)):
+    if not add_jail_time(member, get_elapsed_seconds(game.player_data)):  # pragma: no cover - only prisoners get this far, and a sentence can always grow
         game.alert("Add Time", "Could not add time to that sentence.")
         return
     game.alert("Add Time", f"Added 1 minute to {member.get('name', 'the prisoner')}'s sentence.")

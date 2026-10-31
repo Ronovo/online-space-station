@@ -1,0 +1,14 @@
+[run]
+branch = True
+source = space_online
+
+[report]
+fail_under = 100
+show_missing = True
+skip_covered = True
+
+[html]
+directory = coverage/python
+extra_css = coverage-index/coverage-py.css
+skip_covered = False
+skip_empty = True

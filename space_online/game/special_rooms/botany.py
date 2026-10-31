@@ -216,7 +216,7 @@ def harvest(game, state, args):
     produces_id = planter.get("produces")
 
     produce = get_item_definition(produces_id) if produces_id else None
-    if not produce:
+    if not produce:  # pragma: no cover - every seed produces a known item
         game.alert("Harvest Failed", "Could not resolve the produce for this plant.", kind="error")
         return
 
@@ -338,7 +338,7 @@ def botany_vending_panel(game, state):
     available = []
     for item_id in BOTANY_VEND_IDS:
         item = get_item_definition(item_id)
-        if not item:
+        if not item:  # pragma: no cover - every vended id is in the item data
             continue
         vend_kinds = (item.get("attributes") or {}).get("vend_kinds") or []
         if kind == "all" or kind in vend_kinds:

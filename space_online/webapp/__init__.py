@@ -15,6 +15,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    send_from_directory,
     session,
     url_for,
 )
@@ -38,6 +39,8 @@ USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
 MIN_PASSWORD_LENGTH = 6
 MAX_PASSWORD_LENGTH = 128
 PORTFOLIO_CHOICE_SECONDS = 600
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+COVERAGE_DIR = os.path.join(ROOT, "coverage")
 
 
 def _load_secret_key(instance_path):
@@ -55,7 +58,7 @@ def _load_secret_key(instance_path):
 
 
 def create_app(test_config=None):
-    app = Flask(__name__, instance_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "instance"))
+    app = Flask(__name__, instance_path=os.path.join(ROOT, "instance"))
     app.config.update(
         DATABASE=os.path.join(app.instance_path, "space_online.sqlite3"),
         SESSION_COOKIE_HTTPONLY=True,
@@ -296,6 +299,13 @@ def _register_routes(app):
                     return redirect(url_for("login"))
             flash(error, "error")
         return render_template("reset_password.html", username=username, question=question)
+
+    @app.get("/coverage/", defaults={"path": ""})
+    @app.get("/coverage/<path:path>")
+    def coverage(path):
+        if not path or path.endswith("/"):
+            path += "index.html"
+        return send_from_directory(COVERAGE_DIR, path)
 
     @app.route("/logout", methods=["POST"])
     def logout():

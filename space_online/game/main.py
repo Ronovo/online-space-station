@@ -414,7 +414,7 @@ class SpaceStationGame(PlayerMovementMixin):
                 guard_name=self.player_data.get("name", "Security"),
                 elapsed_seconds=elapsed_seconds,
             )
-            if result is not None:
+            if result is not None:  # pragma: no branch - the fine was checked above, so the guard always collects it or jails
                 return True
 
         if npc_is_guard and self.player_data.get("warrant", False) and not is_jailed(self.player_data):

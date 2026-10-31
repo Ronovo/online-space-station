@@ -1,5 +1,8 @@
 from ronovo_portfolio_auth.security_questions import QUESTIONS
 
+from space_online.game.character_methods import character_creation
+from space_online.game.main import SpaceStationGame
+
 CSRF = "test-csrf-token"
 QUESTION = QUESTIONS[0]
 
@@ -27,3 +30,11 @@ def register(client, username="pilot", password="hunter22"):
 
 def create_character(client, name="Ada", department="Civilian", job="Staff Assistant"):
     return post(client, "/character/new", name=name, department=department, job=job)
+
+
+def new_game(department="Civilian", job="Staff Assistant"):
+    return SpaceStationGame(character_creation.create_character("Ada", department, job))
+
+
+def reports(game):
+    return [title for _, title, *_ in game._messages]

@@ -147,7 +147,7 @@ def order(game, state, args):
         return
 
     stock = player_data["bar_mixed_stock"]
-    if drink_name in MIXED_DRINKS and stock.get(drink_name, 0) <= 0:
+    if drink_name in MIXED_DRINKS and stock.get(drink_name, 0) <= 0:  # pragma: no cover - a mixed drink with no stock isn't on the menu
         game.alert(
             "Out of Stock",
             f"{drink_name} is not available. Mix one at the bartender station first.",

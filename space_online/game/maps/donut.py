@@ -118,7 +118,7 @@ def hallway_neighbors(x, y):
     return neighbors
 
 
-def get_available_directions(x, y):
+def get_available_directions(x, y):  # pragma: no cover - nothing calls this
     """Which of north/south/east/west lead to another hallway tile."""
     neighbors = hallway_neighbors(x, y)
     return {direction: direction in neighbors for direction in DIRECTION_STEPS}

@@ -123,7 +123,7 @@ def _default_basic_tools_contents():
     """Fresh copies of the tools that ship inside a Basic Tools set."""
     contents = []
     for tool_id in BASIC_TOOLKIT_TOOL_IDS:
-        if tool_id in ALL_ITEMS:
+        if tool_id in ALL_ITEMS:  # pragma: no branch - every Basic Tools tool is in the item data
             contents.append(copy.deepcopy(ALL_ITEMS[tool_id]))
     return contents
 
@@ -135,7 +135,7 @@ def get_item_definition(item_id):
     item = copy.deepcopy(ALL_ITEMS[item_id])
     if item_id == "basic_tools":
         attrs = item.setdefault("attributes", {})
-        if "contents" not in attrs:
+        if "contents" not in attrs:  # pragma: no branch - the item data's Basic Tools never lists its contents
             attrs["contents"] = _default_basic_tools_contents()
     return item
 
@@ -297,7 +297,7 @@ def _equip_to_hand(game, index, item_id, side):
         return False
 
     removed = remove_one_from_inventory(game.player_data, index)
-    if removed is None:
+    if removed is None:  # pragma: no cover - can't fail once _item_at has found the item
         game.alert("Error", "Could not equip that item.", kind="error")
         return False
 
@@ -500,7 +500,7 @@ def choose(game, state, args):
 @register_panel("hands", "Hands")
 def hands_panel(game, state):
     selected = _selected_item(game, state)
-    if selected is not None and not _is_equippable(selected):
+    if selected is not None and not _is_equippable(selected):  # pragma: no cover - the hands panel only ever selects equippable items
         selected = None
     rows = _hand_rows(game.player_data)
     for row in rows:

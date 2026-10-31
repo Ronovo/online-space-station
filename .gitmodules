@@ -1,0 +1,3 @@
+[submodule "coverage-index"]
+	path = coverage-index
+	url = https://github.com/Ronovo/ronovos-coverage-index.git

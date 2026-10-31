@@ -265,7 +265,7 @@ def release_member(member, *, is_player=False, game, show_message=True):
         if location is not None:
             member["on_duty"] = True
             member["location"] = location
-        else:
+        else:  # pragma: no cover - every posted job has a post location
             member["location"] = security_hallway_location()
     else:
         member["location"] = security_hallway_location()

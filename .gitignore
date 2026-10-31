@@ -5,6 +5,9 @@ instance/
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.coverage
+coverage/
+node_modules/
 .venv/
 venv/
 
