@@ -241,3 +241,25 @@ def test_prisoners_cannot_sign_pardons():
     game.perform("panel.pardon", {})
     assert last_message(game) == ("Pardon", "Prisoners can't sign pardons.")
     assert is_jailed(game.station_crew[doctor_index])
+
+
+def paperwork(game):
+    game.player_data["errand"] = {"kind": "help", "giver": "Security Guard", "room": SECURITY_KEY, "item": None,
+                                  "label": "file paperwork", "reward": 40, "summary": "Help out"}
+    return game
+
+
+def test_helping_out_on_an_errand_pays_the_reward():
+    game = paperwork(in_security())
+    assert buttons(game)[0] == ("Help Out", "room.complete_errand")
+    game.perform("room.complete_errand", {})
+    assert (game.player_data["credits"], "errand" in game.player_data) == (1040, False)
+    assert last_message(game) == ("Errand Complete", "You file paperwork. The Security Guard pays you 40 credits.")
+    assert game.player_data["notes"][-1]["text"] == "Helped the Security Guard file paperwork for 40 credits."
+
+
+def test_an_errand_shows_under_room_options_for_whoever_runs_the_room():
+    game = paperwork(in_security("Administration", "Captain"))
+    assert ("Help Out", "room.complete_errand") not in buttons(game)
+    game.perform("room.set_mode", {"mode": "options"})
+    assert buttons(game)[0] == ("Help Out", "room.complete_errand")

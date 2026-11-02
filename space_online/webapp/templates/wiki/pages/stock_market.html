@@ -1,0 +1,20 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<p>Anyone can trade shares from the <b>Computer</b> in their Quarters.</p>
+
+<h2>How prices move</h2>
+<ul>
+  <li>The market lists {{ facts.company_count }} companies.</li>
+  <li>Every {{ facts.market_minutes }} minutes of game time a new market cycle starts, and each company's price moves up
+    or down by as much as 10%.</li>
+  <li>Hallway events sometimes let you overhear a tip about a company. Tips aren't always right.</li>
+</ul>
+
+<h2>Trading</h2>
+<ul>
+  <li>Select a company to see its price chart, then buy or sell whole shares at today's price.</li>
+  <li>Filter the list to companies you can afford, ones you own, or ones rising or falling, and sort it by price.</li>
+  <li>Your trade history lists every buy and sell. Your holdings are on the Character Sheet.</li>
+</ul>
+{% endblock %}

@@ -27,7 +27,12 @@
     <b>{{ system.name }}</b>
     <span>
       {% if system.battery %}<span style="color: {{ p.battery_icon_color }}">{{ p.battery_icon }}</span>{% endif %}
-      <span style="color: {{ '#00FF00' if system.online else '#FF0000' }}">{{ "Online" if system.online else "Offline" }}</span>
+      {% if system.faulted %}
+        <span style="color: #FF9900">FAULT</span>
+        {{ ui.btn("Repair", "panel.repair", {"system": system.key}, "btn-small") }}
+      {% else %}
+        <span style="color: {{ '#00FF00' if system.online else '#FF0000' }}">{{ "Online" if system.online else "Offline" }}</span>
+      {% endif %}
     </span>
   </div>
   {% endfor %}

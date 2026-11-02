@@ -2,6 +2,7 @@
 
 from space_online.game.helper_methods.health_bands import health_band, overall_health
 from space_online.game.helper_methods.door_control import SPECIAL_ROOM_DOORS
+from space_online.game.helper_methods.errands import pending_errand
 from space_online.game.helper_methods.game_clock import format_elapsed, get_elapsed_seconds
 from space_online.game.helper_methods.npc_movement import has_post
 from space_online.game.helper_methods.oxygen_helper import DAMAGE_THRESHOLD_LEVEL, WARNING_THRESHOLDS
@@ -56,17 +57,16 @@ def collect_station_status(player_data, station_crew):
         oxygen_threat = "safe"
 
     systems = []
+    faulted = []
     for key, label in SYSTEM_DISPLAY:
         level = int(system_levels.get(key, 0) or 0)
         online = level > 0
-        systems.append(
-            {
-                "name": label,
-                "level": level,
-                "status": "Online" if online else "Offline",
-                "status_color": "#00FF00" if online else "#FF0000",
-            }
-        )
+        if key in power["faults"]:
+            faulted.append(label)
+            status, color = "Fault", "#FF9900"
+        else:
+            status, color = ("Online", "#00FF00") if online else ("Offline", "#FF0000")
+        systems.append({"name": label, "level": level, "status": status, "status_color": color})
 
     all_crew = [player_data] + list(station_crew)
     healthy = injured = critical = oxygen_stress = on_duty = away = 0
@@ -122,6 +122,11 @@ def collect_station_status(player_data, station_crew):
     botany_total = len(planters)
     botany_occupied = sum(1 for p in planters if p["occupied"])
     botany_mature = sum(1 for p in planters if p["occupied"] and p["growth_stage"] >= GROWTH_STAGES)
+    botany_dead = sum(1 for p in planters if p["occupied"] and p["dead"])
+    botany_thirsty = sum(
+        1 for p in planters
+        if p["occupied"] and not p["dead"] and p["growth_stage"] < GROWTH_STAGES and not p["watered"]
+    )
 
     market = player_data["stock_market"]
     cycle_number = market["cycle_number"]
@@ -201,6 +206,16 @@ def collect_station_status(player_data, station_crew):
             }
         )
 
+    errand = pending_errand(player_data)
+    if errand:
+        alerts.append({"text": f"Pending errand: {errand['summary']}", "severity": "caution"})
+    if faulted:
+        alerts.append({"text": f"System fault: {', '.join(faulted)}", "severity": "caution"})
+    if botany_thirsty:
+        alerts.append({"text": f"Botany planters needing water: {botany_thirsty}", "severity": "caution"})
+    if botany_dead:
+        alerts.append({"text": f"Botany planters with dead plants: {botany_dead}", "severity": "caution"})
+
     overall = "NOMINAL"
     if (
         band in ("outage", "critical")
@@ -218,6 +233,10 @@ def collect_station_status(player_data, station_crew):
         or wanted_details
         or jailed_details
         or access_request
+        or errand
+        or faulted
+        or botany_thirsty
+        or botany_dead
     ):
         overall = "CAUTION"
 
@@ -259,6 +278,8 @@ def collect_station_status(player_data, station_crew):
             "botany_occupied": botany_occupied,
             "botany_total": botany_total,
             "botany_mature": botany_mature,
+            "botany_dead": botany_dead,
+            "botany_thirsty": botany_thirsty,
         },
     }
 

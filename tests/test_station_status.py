@@ -1,6 +1,7 @@
 import pytest
 
 from helpers import new_game
+from space_online.game.helper_methods.power_constants import fault_system
 from space_online.game.helper_methods.station_status import collect_station_status
 from space_online.game.maps.donut import BAR_KEY, MEDBAY_KEY
 
@@ -119,6 +120,43 @@ def test_locked_rooms_and_access_requests_are_cautions():
     assert alert_texts(game) == [("Locked rooms: MedBay, Bar", "caution"),
                                  ("Pending access request: Unknown → Doctor", "caution")]
     assert status(game)["facilities"]["locked_rooms"] == ["MedBay", "Bar"]
+
+
+def test_a_pending_errand_is_a_caution():
+    game = new_game("Civilian", "Botanist")
+    game.player_data["station_power"]["battery_level"] = 80
+    game.player_data["errand"] = {"kind": "treat", "room": MEDBAY_KEY, "patient": "Sam",
+                                  "summary": "Treat Sam from Crew Vitals"}
+    assert alert_texts(game) == [("Pending errand: Treat Sam from Crew Vitals", "caution")]
+    assert status(game)["overall"] == "CAUTION"
+
+
+def test_faulted_systems_show_and_are_a_caution():
+    game = new_game()
+    power = game.player_data["station_power"]
+    power["battery_level"] = 80
+    fault_system(power, "communication_array")
+    fault_system(power, "security_systems")
+    report = status(game)
+    assert [(s["name"], s["status"], s["status_color"]) for s in report["power"]["systems"]][2:] == [
+        ("Security Systems", "Fault", "#FF9900"), ("Comm Array", "Fault", "#FF9900")]
+    assert alert_texts(game) == [("System fault: Security Systems, Comm Array", "caution")]
+    assert report["overall"] == "CAUTION"
+
+
+def test_thirsty_and_dead_plants_are_counted_and_cautions():
+    game = new_game("Civilian", "Botanist")
+    game.player_data["station_power"]["battery_level"] = 80
+    planters = game.player_data["botany"]["planters"]
+    base = {"occupied": True, "plant": "Potato", "growth_class": "crop", "planted_at_seconds": 0}
+    planters[0].update(base, growth_stage=1)
+    planters[1].update(base, growth_stage=1, watered=True)
+    planters[2].update(base, growth_stage=1, dead=True)
+    report = status(game)
+    assert (report["overall"], report["facilities"]["botany_thirsty"], report["facilities"]["botany_dead"]) == (
+        "CAUTION", 1, 1)
+    assert alert_texts(game) == [("Botany planters needing water: 1", "caution"),
+                                 ("Botany planters with dead plants: 1", "caution")]
 
 
 @pytest.mark.parametrize("access_request", [None, {"requested_job": None}])

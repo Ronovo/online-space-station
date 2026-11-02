@@ -17,7 +17,18 @@ def default_station_power():
         "system_levels": dict(BALANCED_SYSTEM_LEVELS),
         "power_mode": "balanced",
         "last_lighting_battery_band": None,
+        "faults": [],
     }
+
+
+# Systems an equipment fault can knock out. Life support is never one of them.
+FAULTABLE_SYSTEMS = ("hallway_lighting", "security_systems", "communication_array")
+
+
+def fault_system(station_power, system_key):
+    """Knock a system out: it stays at 0 until it is repaired from the Engineering Panel."""
+    station_power["faults"].append(system_key)
+    station_power["system_levels"][system_key] = 0
 
 
 SYSTEM_POWER_RATES = {

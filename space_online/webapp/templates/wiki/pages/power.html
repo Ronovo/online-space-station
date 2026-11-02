@@ -1,0 +1,40 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<p>
+  Everything aboard runs off one battery. It drains as the station's systems draw power, and the solar array charges
+  it back up.
+</p>
+
+<h2>Systems</h2>
+<ul>
+  <li>Four systems draw power: Life Support, Hallway Lighting, Security Systems and the Communication Array. Each runs
+    at a level from 0 (off) to 10, and higher levels draw more.</li>
+  <li>Life support keeps the crew breathing. See {{ w.link("Life Support") }}.</li>
+  <li>Hallway lighting sets how bright the station is. When the battery runs low, the lights dim on their own, and
+    near empty they drop to red emergency lighting.</li>
+</ul>
+
+<h2>The battery</h2>
+<ul>
+  <li>The solar array charges the battery by {{ facts.power.SOLAR_CHARGE_RATE|int }}% a minute while it's on.</li>
+  <li>At {{ facts.power.BATTERY_LOW }}% or less the battery is low, and at {{ facts.power.BATTERY_CRITICAL }}% or less
+    it's critical, with a warning to switch on the solar array. At 0% the station has a power outage.</li>
+</ul>
+
+<h2>Power modes</h2>
+<p>A power mode sets every system's level at once:</p>
+<ul>
+  {% for mode in facts.power_modes %}<li>{{ mode }}</li>{% endfor %}
+</ul>
+<p>
+  With the solar array on, Balanced holds the battery steady, High Performance still loses a little, and Emergency
+  Only charges fastest.
+</p>
+
+<h2>Who controls it</h2>
+<p>
+  The Engineering Panel, at the Engineering Station, has the solar switch, a level slider for each system and the
+  power modes. Engineers, the Head of Personnel and the Captain can use it. See {{ w.link("Engineering") }}.
+</p>
+{% endblock %}

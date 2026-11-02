@@ -184,6 +184,25 @@ def test_a_medkit_is_kept_when_nothing_needs_healing():
     assert len(game.player_data["inventory"]) == 1
 
 
+def test_aloe_soothes_burns_only():
+    game = give(new_game(), "aloe")
+    game.player_data["damage"]["burn"] = 15
+    game.player_data["limbs"]["head"] = 50
+    do(game, "aloe", "use")
+    assert (game.player_data["damage"]["burn"], game.player_data["limbs"]["head"]) == (5, 50)
+    assert last_message(game) == ("Aloe", "The aloe soothes your burns.\n\nBurn: 15% → 5%")
+    assert notes(game)[-1] == "Used an aloe leaf on your burns."
+    assert game.player_data["inventory"] == []
+
+
+def test_aloe_is_kept_when_there_are_no_burns():
+    game = give(new_game(), "aloe")
+    game.player_data["damage"]["poison"] = 30
+    do(game, "aloe", "use")
+    assert last_message(game) == ("Aloe", "You have no burns for the aloe to soothe.")
+    assert (len(game.player_data["inventory"]), game.player_data["damage"]["poison"]) == (1, 30)
+
+
 def open_toolkit(game):
     do(game, "basic_tools", "use")
     return panel(game)

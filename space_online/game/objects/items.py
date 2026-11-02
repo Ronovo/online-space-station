@@ -105,6 +105,14 @@ ALL_ITEMS = {
         "attributes": {},
         "actions": ["examine", "use", "drop"]
     },
+    "aloe": {
+        "id": "aloe",
+        "name": "Aloe",
+        "description": "A fleshy aloe leaf from the botany lab. Its gel soothes burns.",
+        "category": "Healing",
+        "attributes": {},
+        "actions": ["examine", "use", "drop"]
+    },
 }
 
 ALL_ITEMS.update(FOOD_ITEMS)
@@ -243,7 +251,8 @@ def _select_item(game, state, args, predicate=None):
         state["selected_id"] = item.get("id")
 
 
-USABLE_ITEM_IDS = ("medkit", "basic_tools")
+USABLE_ITEM_IDS = ("medkit", "aloe", "basic_tools")
+ALOE_BURN_RELIEF = 10
 
 
 def _other_actions(item):
@@ -420,9 +429,11 @@ def _eat_item(game, state, item):
 
 
 def _use_item(game, state, item):
-    """Use a medkit, or open a basic_tools container (the USABLE_ITEM_IDS)."""
+    """Use a medkit or aloe, or open a basic_tools container (the USABLE_ITEM_IDS)."""
     if item["id"] == "medkit":
         _use_medkit(game, state)
+    elif item["id"] == "aloe":
+        _use_aloe(game, state)
     else:
         uid = item.setdefault("uid", uuid.uuid4().hex)
         game.close_panel("item_actions")
@@ -451,6 +462,19 @@ def _use_medkit(game, state):
     game.close_panel("item_actions")
     game.add_note("Used a medkit.")
     game.alert("Medkit", "You use the medkit:\n\n" + "\n".join(summary_lines))
+
+
+def _use_aloe(game, state):
+    """Soothe burns by ALOE_BURN_RELIEF; the aloe is kept when there are none."""
+    player_data = game.player_data
+    if player_data["damage"]["burn"] <= 0:
+        game.alert("Aloe", "You have no burns for the aloe to soothe.")
+        return
+    before, after = reduce_damage(player_data, "burn", ALOE_BURN_RELIEF)
+    remove_one_from_inventory(player_data, state["index"])
+    game.close_panel("item_actions")
+    game.add_note("Used an aloe leaf on your burns.")
+    game.alert("Aloe", f"The aloe soothes your burns.\n\nBurn: {before}% → {after}%")
 
 
 def _equip_item(game, state, item):

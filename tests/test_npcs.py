@@ -4,7 +4,7 @@ import pytest
 
 from helpers import new_game, reports
 from space_online.game.helper_methods import npc_movement
-from space_online.game.helper_methods.jail import is_jailed
+from space_online.game.helper_methods.jail import PETTY_CRIMES, is_jailed
 from space_online.game.helper_methods.npc_movement import (
     ROOM_VISIT_TICKS,
     any_npc_for_job,
@@ -249,6 +249,26 @@ def test_wandering_crew_sometimes_get_hurt_or_heal(monkeypatch):
         npc_movement._maybe_trigger_silent_event(member)
     assert member["limbs"]["head"] == 100
     npc_movement._apply_silent_npc_event({"name": "No body"})
+
+
+def test_wandering_crew_sometimes_commit_petty_crimes(monkeypatch):
+    game = new_game()
+    by_job = {npc["job"]: npc for npc in game.station_crew}
+    dice(monkeypatch, 0.0, pick=lambda options: "nothing" if "nothing" in options else options[-1])
+    for job in ("Doctor", "Captain", "Security Guard"):
+        npc_movement._maybe_trigger_silent_event(by_job[job])
+    assert (by_job["Doctor"]["warrant"], by_job["Doctor"]["warrant_reason"]) == (True, PETTY_CRIMES[-1])
+    assert not by_job["Captain"]["warrant"] and not by_job["Security Guard"]["warrant"]
+    by_job["Doctor"]["warrant_reason"] = "Brawling"
+    npc_movement._maybe_trigger_silent_event(by_job["Doctor"])
+    assert by_job["Doctor"]["warrant_reason"] == "Brawling"
+
+
+def test_crimes_are_rare(monkeypatch):
+    member = next(npc for npc in new_game().station_crew if npc["job"] == "Doctor")
+    dice(monkeypatch, npc_movement.NPC_CRIME_CHANCE)
+    npc_movement._maybe_trigger_silent_event(member)
+    assert member["warrant"] is False
 
 
 def test_healing_skips_crew_who_are_not_hurt(monkeypatch):

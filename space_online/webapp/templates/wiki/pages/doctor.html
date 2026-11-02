@@ -1,0 +1,23 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You keep the crew healthy. At the MedBay Station, <b>Heal Injuries</b> fully heals you for free, and
+  <b>Check Crew Vitals</b> shows everyone's health. Injured crew can be treated from there, and they pay you the cost of
+  their treatment. You can also lock and unlock the MedBay door. See {{ w.link("Medical") }}.
+</p>
+
+<h2>Job events</h2>
+<p>
+  <b>Patient</b>: a crew member is hurt in an accident. Treat them from Crew Vitals to finish the errand. See
+  {{ w.link("Errands and Job Events") }}.
+</p>
+
+<h2>Tips</h2>
+<ul>
+  <li>Crew pick up small injuries as they wander. Check the vitals monitor now and then for paying patients.</li>
+  <li>When life support fails, everyone takes oxygen damage. Past {{ facts.oxygen.DOCTOR_REQUIRED_FLOOR }}% it won't
+    wear off on its own. See {{ w.link("Life Support") }}.</li>
+</ul>
+{% endblock %}

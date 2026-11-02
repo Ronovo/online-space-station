@@ -34,6 +34,7 @@ from space_online.game.character_methods.character_creation import (
 from space_online.game.helper_methods.ui_panels import default_ui_state
 from space_online.game.main import SpaceStationGame
 from space_online.webapp import db
+from space_online.webapp.wiki import wiki
 
 USERNAME_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
 MIN_PASSWORD_LENGTH = 6
@@ -74,6 +75,7 @@ def create_app(test_config=None):
     os.makedirs(os.path.dirname(app.config["DATABASE"]), exist_ok=True)
     db.init_db(app)
     _register_routes(app)
+    app.register_blueprint(wiki)
     return app
 
 

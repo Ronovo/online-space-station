@@ -1,0 +1,27 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You keep the station powered. From the Engineering Panel you watch the battery, switch the solar array, set each
+  system's level and pick the power mode. See {{ w.link("Power") }}. You can also lock and unlock the Engineering Bay
+  door.
+</p>
+<p>
+  When you're the Engineer, the solar array starts switched off, so turning it on is your first job.
+</p>
+
+<h2>Job events</h2>
+<ul>
+  <li><b>Solar Panels Offline</b>: the array shuts down. Switch it back on from the Engineering Panel.</li>
+  <li><b>System Fault</b>: {{ facts.faultable|join(", ") }} faults and shuts off. Carry Basic Tools or a Repair Tool and
+    press <b>Repair</b> on the panel. See {{ w.link("Engineering") }}.</li>
+</ul>
+
+<h2>Tips</h2>
+<ul>
+  <li>Keep Basic Tools from your locker on you, so a fault can be fixed straight away.</li>
+  <li>Keep life support above level {{ facts.oxygen.DAMAGE_THRESHOLD_LEVEL }}, or the whole crew starts losing oxygen.
+    See {{ w.link("Life Support") }}.</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set e = facts.events %}
+{% block page %}
+<h2>Job events</h2>
+<p>
+  One kind of hallway event is your job calling. What it is depends on your job:
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Job</th><th>Job events</th></tr></thead>
+  <tbody>
+    <tr><td>{{ w.link("Staff Assistant") }}</td><td>Job requests from department crew</td></tr>
+    <tr><td>{{ w.link("Engineer") }}</td><td>Solar outages and system faults</td></tr>
+    <tr><td>{{ w.link("Security Guard") }}</td><td>Witnessing a crime</td></tr>
+    <tr><td>{{ w.link("Doctor") }}</td><td>Patients hurt in accidents</td></tr>
+    <tr><td>{{ w.link("Bartender") }}</td><td>Drink orders</td></tr>
+    <tr><td>{{ w.link("Botanist") }}</td><td>Crop requests from the Bartender</td></tr>
+    <tr><td>{{ w.link("Head of Personnel") }}</td><td>Job requests from the crew</td></tr>
+    <tr><td>{{ w.link("Captain") }}</td><td>Command requests to approve or deny</td></tr>
+  </tbody>
+</table>
+
+<h2>Errands</h2>
+<p>
+  Some job events give you an errand. You have one at a time, and no new errand comes in until it's done. A pending
+  errand shows in Station Status.
+</p>
+<ul>
+  <li><b>Deliver</b>: bring an item to a crew member in their room and press <b>Deliver</b>. The button shows while
+    they're on duty.</li>
+  <li><b>Help out</b>: go to a crew member's room and press <b>Help Out</b> while they're on duty.</li>
+  <li><b>Serve</b>: the Bartender serves a mixed drink from stock at the Bartender Station.</li>
+  <li><b>Treat</b>: the Doctor treats a hurt crew member from Crew Vitals.</li>
+</ul>
+
+<h2>Rewards</h2>
+<ul>
+  <li>Staff Assistant errands pay {{ e.ERRAND_MIN_REWARD }}-{{ e.ERRAND_MAX_REWARD }} credits.</li>
+  <li>Crop requests pay the Botanist {{ e.CROP_REQUEST_MIN_REWARD }}-{{ e.CROP_REQUEST_MAX_REWARD }} credits.</li>
+  <li>Drink orders pay the drink's menu price.</li>
+  <li>Patients pay the cost of their treatment.</li>
+</ul>
+{% endblock %}

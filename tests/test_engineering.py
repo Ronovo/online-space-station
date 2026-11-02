@@ -6,8 +6,10 @@ from space_online.game.helper_methods.oxygen_helper import (
     OXYGEN_DEPLETION_FOLLOWUP_TITLE,
     OXYGEN_DEPLETION_GRACE_SECONDS,
 )
-from space_online.game.helper_methods.power_constants import BALANCED_SYSTEM_LEVELS
+from space_online.game.helper_methods.lighting_helper import clamp_lighting_for_battery
+from space_online.game.helper_methods.power_constants import BALANCED_SYSTEM_LEVELS, fault_system
 from space_online.game.maps.donut import ENGINEERING_KEY, location_from_key
+from space_online.game.objects.items import add_to_inventory, get_item_definition
 from space_online.game.special_rooms.engineering import POWER_MODE_LEVELS
 
 
@@ -76,8 +78,8 @@ def test_fabricating_an_item():
     game = in_engineering()
     ctx = fabricator(game)
     assert (ctx["categories"], ctx["category"], ctx["item_names"]) == (
-        ["Tool", "Book"], "Tool", ["Wrench", "Screwdriver", "Wirecutters", "Basic Tools"])
-    game.perform("panel.select", {"index": 3})
+        ["Tool", "Book"], "Tool", ["Wrench", "Screwdriver", "Wirecutters", "Repair Tool", "Basic Tools"])
+    game.perform("panel.select", {"index": 4})
     game.perform("panel.create", {})
     assert game.player_data["inventory"][0]["id"] == "basic_tools"
     assert len(game.player_data["inventory"][0]["attributes"]["contents"]) == 3
@@ -214,3 +216,61 @@ def test_lowering_life_support_into_the_damage_range_warns():
     game.perform("panel.set_level", {"system": "life_support", "value": "4"})
     game.perform("panel.set_level", {"system": "life_support", "value": "3"})
     assert reports(game) == [LIFE_SUPPORT_DAMAGE_BEGIN_TITLE]
+
+
+def faulted(game, system="security_systems"):
+    fault_system(game.player_data["station_power"], system)
+    return game
+
+
+def test_a_faulted_system_shows_on_the_panel_and_stays_off():
+    game = engineering_panel(faulted(in_engineering("Engineering", "Engineer")))
+    system = next(s for s in panel(game)["ctx"]["systems"] if s["key"] == "security_systems")
+    assert (system["faulted"], system["value"], system["online"]) == (True, 0, False)
+    game.perform("panel.set_level", {"system": "security_systems", "value": "5"})
+    assert last_message(game) == ("System Fault", "Security Systems is faulted. Repair it before powering it back up.")
+    game.perform("panel.set_level", {"system": "security_systems", "value": "0"})
+    game.perform("panel.set_power_mode", {"mode": "high"})
+    assert levels(game)["security_systems"] == 0
+    assert levels(game)["communication_array"] == POWER_MODE_LEVELS["high"]["communication_array"]
+
+
+def test_repairing_needs_tools_and_a_wrench_alone_is_not_enough():
+    game = engineering_panel(faulted(in_engineering("Engineering", "Engineer")))
+    add_to_inventory(game.player_data, get_item_definition("wrench"))
+    game.perform("panel.repair", {"system": "security_systems"})
+    assert last_message(game) == ("Repair", "You need Basic Tools or a Repair Tool to repair the Security Systems.")
+    assert game.player_data["station_power"]["faults"] == ["security_systems"]
+
+
+@pytest.mark.parametrize("where", ["inventory", "hand"])
+def test_repairing_with_tools_brings_the_system_back_at_the_modes_level(where):
+    game = engineering_panel(faulted(in_engineering("Engineering", "Engineer")))
+    if where == "inventory":
+        add_to_inventory(game.player_data, get_item_definition("basic_tools"))
+    else:
+        game.player_data["hands"]["right"] = get_item_definition("repair_tool")
+    game.perform("panel.set_power_mode", {"mode": "low"})
+    game.perform("panel.repair", {"system": "security_systems"})
+    name = "Basic Tools" if where == "inventory" else "Repair Tool"
+    power = game.player_data["station_power"]
+    assert (power["faults"], levels(game)["security_systems"]) == ([], POWER_MODE_LEVELS["low"]["security_systems"])
+    assert last_message(game) == ("Repair", f"You repair the Security Systems with the {name}. It is back online.")
+    assert game.player_data["notes"][-1]["text"] == f"Repaired the Security Systems with the {name}."
+
+
+def test_only_faulted_systems_are_repaired_and_only_with_clearance():
+    game = faulted(in_engineering())
+    add_to_inventory(game.player_data, get_item_definition("repair_tool"))
+    game.open_panel("engineering_panel")
+    game.perform("panel.repair", {"system": "security_systems"})
+    game.perform("panel.repair", {"system": "life_support"})
+    assert (game.player_data["station_power"]["faults"], game._messages) == (["security_systems"], [])
+
+
+def test_faulted_lighting_ignores_the_battery_lighting_bands():
+    game = faulted(in_engineering(), "hallway_lighting")
+    power = game.player_data["station_power"]
+    power["battery_level"] = 80
+    clamp_lighting_for_battery(power)
+    assert (power["system_levels"]["hallway_lighting"], power["last_lighting_battery_band"]) == (0, "normal")

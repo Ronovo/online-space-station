@@ -65,6 +65,7 @@ from space_online.game.helper_methods.ui_panels import (
 )
 from space_online.game.character_methods import character_sheet  # noqa: F401  (registers the character sheet panels)
 from space_online.game.special_rooms import MedBay, Bridge, Security, Engineering, Bar, Botany, Quarters
+from space_online.game.special_rooms.botany import announce_planter_changes
 from space_online.game.special_rooms.shared import add_note as shared_add_note
 
 SPECIAL_ROOM_CLASSES = {
@@ -210,6 +211,7 @@ class SpaceStationGame(PlayerMovementMixin):
             lambda: apply_alcohol_tick(self.player_data, delta_seconds),
             lambda: tick_jail_releases(self),
             lambda: self.market_engine.tick_if_due(get_elapsed_seconds(self.player_data)),
+            lambda: announce_planter_changes(self),
             self._tick_npc_move,
         ):
             try:

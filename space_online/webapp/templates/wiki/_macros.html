@@ -1,0 +1,3 @@
+{% macro link(title, text=None) -%}
+<a href="{{ wiki_url(title) }}">{{ text or title }}</a>
+{%- endmacro %}

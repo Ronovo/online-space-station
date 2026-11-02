@@ -1,6 +1,7 @@
 import random
 
 from space_online.game.objects.drinks import DRINKS_MENU, MIXED_DRINKS, is_drink_alcoholic
+from space_online.game.helper_methods.errands import finish_errand, pending_errand
 from space_online.game.objects.items import add_to_inventory
 from space_online.game.special_rooms.shared import (
     SpecialRoomBase,
@@ -50,18 +51,38 @@ class Bar(SpecialRoomBase):
     def mode_buttons(self, mode):
         if mode != "bartender" or not self.station_allowed(mode):
             return None
-        return [
+        widgets = [
             button("Mix Drinks", "room.show_drink_mixer"),
             button("View Recipes", "room.show_recipes"),
             button("Serve Regular Drinks", "room.show_drink_menu"),
-            button("Back to Station Menu", "room.set_mode", mode="menu"),
         ]
+        errand = pending_errand(self.player_data)
+        if errand and errand["kind"] == "serve":
+            widgets.append(button(f"Serve {errand['item']} to {errand['patron']}", "room.serve_order"))
+        return widgets + [button("Back to Station Menu", "room.set_mode", mode="menu")]
 
     @room_action
     def show_drink_menu(self):
         """Order from the menu (bartender NPC present) or serve it (bartender station)."""
         if available_npc(self.game, "Bartender") or self.station_allowed("bartender"):
             self.game.open_panel("drink_menu")
+
+    @room_action(station="bartender")
+    def serve_order(self):
+        """Serve the drink order errand from the mixed-drink stock, for the drink's price."""
+        errand = pending_errand(self.player_data)
+        if not errand or errand["kind"] != "serve":
+            return
+        drink, patron, reward = errand["item"], errand["patron"], errand["reward"]
+        stock = self.player_data["bar_mixed_stock"]
+        if stock.get(drink, 0) <= 0:
+            self.game.alert("Not in Stock", f"There's no {drink} ready. Mix one first.")
+            return
+        stock[drink] -= 1
+        if stock[drink] <= 0:
+            del stock[drink]
+        finish_errand(self.game, f"Served a {drink} to {patron} for {reward} credits.",
+                      f"You serve {patron} a {drink}. They pay you {reward} credits.", reward)
 
     @room_action
     def socialize(self):
@@ -94,6 +115,15 @@ def _drink_categories(player_data):
     }
 
 
+def _on_the_house(player_data):
+    """Bartenders drink free at their own bar."""
+    return player_data["job"] == "Bartender"
+
+
+def _price_text(player_data, details):
+    return "free" if _on_the_house(player_data) else f"{details['price']} credits"
+
+
 def _current_drinks(game, state):
     category = state.get("category", "All Drinks")
     return _drink_categories(game.player_data).get(category, {})
@@ -105,10 +135,11 @@ def drink_menu_panel(game, state):
     drinks = _current_drinks(game, state)
     rows = []
     for drink, details in drinks.items():
+        price = _price_text(game.player_data, details)
         if drink in MIXED_DRINKS:
-            label = f"{drink} (Qty: {stock.get(drink, 0)}) - {details['price']} credits"
+            label = f"{drink} (Qty: {stock.get(drink, 0)}) - {price}"
         else:
-            label = f"{drink} - {details['price']} credits"
+            label = f"{drink} - {price}"
         rows.append({"name": drink, "label": label})
 
     selected = state.get("selected")
@@ -154,7 +185,8 @@ def order(game, state, args):
         )
         return
 
-    if player_data["credits"] < drink_details["price"]:
+    price = 0 if _on_the_house(player_data) else drink_details["price"]
+    if player_data["credits"] < price:
         game.alert("Insufficient Credits", f"You don't have enough credits to order {drink_name}.")
         return
 
@@ -164,7 +196,7 @@ def order(game, state, args):
             del stock[drink_name]
             state.pop("selected", None)
 
-    player_data["credits"] -= drink_details["price"]
+    player_data["credits"] -= price
 
     alcoholic = is_drink_alcoholic(drink_name, drink_details)
     add_to_inventory(player_data, {
@@ -179,11 +211,13 @@ def order(game, state, args):
         "actions": ["examine", "drink", "drop"],
     })
 
-    game.add_note(
-        f"Purchased {drink_name} at the bar for {drink_details['price']} credits. Added to inventory."
-    )
+    if not price:
+        game.add_note(f"Poured a {drink_name} on the house. Added to inventory.")
+        game.alert("Order Successful", f"You pour yourself a {drink_name} on the house. "
+                                       f"It has been added to your inventory.")
+        return
+    game.add_note(f"Purchased {drink_name} at the bar for {price} credits. Added to inventory.")
     game.alert(
         "Order Successful",
-        f"You've ordered a {drink_name} for {drink_details['price']} credits. "
-        f"It has been added to your inventory.",
+        f"You've ordered a {drink_name} for {price} credits. It has been added to your inventory.",
     )

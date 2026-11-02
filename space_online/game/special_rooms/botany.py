@@ -2,17 +2,20 @@ from space_online.game.helper_methods.game_clock import format_elapsed, get_elap
 from space_online.game.helper_methods.ui_panels import choice_handler, panel_action, register_panel
 from space_online.game.maps.donut import BOTANY_KEY
 from space_online.game.objects.botany_items import (
+    BOTANIST_STAND_PRICES,
     BOTANY_SEED_IDS,
-    BOTANY_VEND_IDS,
+    BOTANY_VEND_CATALOG,
     GROWTH_STAGES,
-    MIRACLE_GROW_SPEED_BONUS,
     PLANTERS_PER_ROW,
     PLANTER_ROWS,
     PLENTIFUL_HARVEST_YIELD_MULTIPLIER,
+    VEND_RESTOCK_SECONDS,
+    apply_miracle_grow,
     empty_planter,
     growth_seconds_to_next_stage,
     growth_stage_label,
     refresh_planter_growth,
+    restock_vending,
 )
 from space_online.game.objects.items import (
     HAND_SIDES,
@@ -22,6 +25,7 @@ from space_online.game.objects.items import (
 )
 from space_online.game.special_rooms.shared import (
     SpecialRoomBase,
+    available_npc,
     button,
     npc_contact_widgets,
     room_action,
@@ -76,7 +80,8 @@ class Botany(SpecialRoomBase):
 
     @room_action
     def talk_to_botanist(self):
-        self.game.alert("Botanist", "The botanist continues tending to the plants without looking up.")
+        if available_npc(self.game, "Botanist"):
+            self.game.open_panel("botany_stand")
 
     @room_action
     def view_plants(self):
@@ -278,12 +283,19 @@ def use_hand(game, state, args):
         game.alert("Nothing Planted", "There is nothing planted in this planter.")
         return
 
+    elapsed_seconds = get_elapsed_seconds(game.player_data)
+    growth_stage = refresh_planter_growth(planter, elapsed_seconds)
+
     if item_id == "watering_can" or item_id in LIQUID_CONSUMABLE_IDS:
         if planter.get("dead"):
             game.alert(
                 "Plant Dead",
                 "This plant has died. It needs to be cleared with a Trowel or Chainsaw.",
             )
+            return
+        wasted = _wasted_on(planter, item_id, growth_stage)
+        if wasted:
+            game.alert(*wasted)
             return
 
     if item_id == "watering_can":
@@ -293,7 +305,7 @@ def use_hand(game, state, args):
 
     if item_id in LIQUID_CONSUMABLE_IDS:
         if item_id == "miracle_grow":
-            planter["miracle_grow"] = MIRACLE_GROW_SPEED_BONUS
+            apply_miracle_grow(planter, elapsed_seconds)
             game.add_note(f"Applied Miracle Grow to planter {planter_index + 1}.")
         elif item_id == "plentiful_harvest":
             planter["yield_multiplier"] = PLENTIFUL_HARVEST_YIELD_MULTIPLIER
@@ -324,6 +336,20 @@ def use_hand(game, state, args):
     game.alert("Cannot Use", f"The {item_name} can't be used on planters.")
 
 
+def _wasted_on(planter, item_id, growth_stage):
+    """(title, message) when item_id would do nothing for this living plant, else None."""
+    mature = growth_stage >= GROWTH_STAGES
+    if item_id == "watering_can" and (mature or planter.get("watered")):
+        return "No Water Needed", "This plant doesn't need water right now."
+    if item_id == "miracle_grow" and planter.get("miracle_grow"):
+        return "Already Applied", "This plant already has Miracle Grow."
+    if item_id == "miracle_grow" and mature:
+        return "Fully Grown", "This plant is already fully grown."
+    if item_id == "plentiful_harvest" and int(planter.get("yield_multiplier") or 1) > 1:
+        return "Already Applied", "This plant already has Plentiful Harvest."
+    return None
+
+
 @choice_handler("clear_planter")
 def clear_planter(game, index, item_name):
     planters = game.player_data["botany"]["planters"]
@@ -332,25 +358,64 @@ def clear_planter(game, index, item_name):
         game.add_note(f"Cleared planter {index + 1} with the {item_name}.")
 
 
+def announce_planter_changes(game):
+    """Refresh every planter on the clock, reporting each plant that died and noting each one that matured.
+
+    A planter's "announced" field records the status already told, so a change that another
+    refresh found first is still told here exactly once.
+    """
+    elapsed_seconds = get_elapsed_seconds(game.player_data)
+    for index, planter in enumerate(game.player_data["botany"]["planters"]):
+        growth_stage = refresh_planter_growth(planter, elapsed_seconds)
+        if not planter["occupied"] or planter["announced"]:
+            continue
+        where = f"The {planter['plant']} in planter {index + 1}"
+        if planter["dead"]:
+            planter["announced"] = "dead"
+            game.report("Plant Died", f"{where} died for lack of water.", kind="warning")
+            game.add_note(f"{where} died for lack of water.")
+        elif growth_stage >= GROWTH_STAGES:
+            planter["announced"] = "mature"
+            game.add_note(f"{where} is ready to harvest.")
+
+
+def _sell(game, item_id, price, seller):
+    """Charge price and put item_id in the inventory. Returns False when the player can't afford it."""
+    item = get_item_definition(item_id)
+    if game.player_data["credits"] < price:
+        game.alert("Insufficient Credits", f"You don't have enough credits to buy {item['name']}.")
+        return False
+    game.player_data["credits"] -= price
+    add_to_inventory(game.player_data, item)
+    game.add_note(f"Bought {item['name']} from {seller} for {price} credits.")
+    return True
+
+
+def _vending_stock(game):
+    return restock_vending(game.player_data["botany"], get_elapsed_seconds(game.player_data))
+
+
 @register_panel("botany_vending", "Botany Vending Machine")
 def botany_vending_panel(game, state):
     kind = state.get("filter", "all")
+    stock = _vending_stock(game)
     available = []
-    for item_id in BOTANY_VEND_IDS:
+    for item_id, (price, _) in BOTANY_VEND_CATALOG.items():
         item = get_item_definition(item_id)
         if not item:  # pragma: no cover - every vended id is in the item data
             continue
         vend_kinds = (item.get("attributes") or {}).get("vend_kinds") or []
         if kind == "all" or kind in vend_kinds:
-            available.append({"id": item_id, "name": item["name"]})
+            available.append({"id": item_id, "name": item["name"], "price": price, "stock": stock[item_id]})
     return {
         "filters": VEND_FILTERS,
         "filter": kind,
+        "credits": game.player_data["credits"],
         "available": available,
         "owned": [
             format_inventory_label(item)
             for item in game.player_data["inventory"]
-            if isinstance(item, dict) and item.get("id") in BOTANY_VEND_IDS
+            if isinstance(item, dict) and item.get("id") in BOTANY_VEND_CATALOG
         ],
     }
 
@@ -361,12 +426,36 @@ def vending_filter(game, state, args):
         state["filter"] = args["kind"]
 
 
-@panel_action("botany_vending", "get")
-def get_vending_item(game, state, args):
-    """Get an item from the botany vending machine into inventory."""
+@panel_action("botany_vending", "buy")
+def buy_vending_item(game, state, args):
     item_id = args["item_id"]
-    item = get_item_definition(item_id) if item_id in BOTANY_VEND_IDS else None
-    if not item:
+    if item_id not in BOTANY_VEND_CATALOG:
         return
-    add_to_inventory(game.player_data, item)
-    game.add_note(f"Acquired {item['name']} from the botany vending machine.")
+    stock = _vending_stock(game)
+    if stock[item_id] <= 0:
+        game.alert(
+            "Out of Stock",
+            f"The machine is out of {get_item_definition(item_id)['name']}. "
+            f"It restocks one every {VEND_RESTOCK_SECONDS // 60} minutes.",
+        )
+        return
+    if _sell(game, item_id, BOTANY_VEND_CATALOG[item_id][0], "the botany vending machine"):
+        stock[item_id] -= 1
+
+
+@register_panel("botany_stand", "Produce Stand")
+def botany_stand_panel(game, state):
+    return {
+        "credits": game.player_data["credits"],
+        "produce": [
+            {"id": item_id, "name": get_item_definition(item_id)["name"], "price": price}
+            for item_id, price in BOTANIST_STAND_PRICES.items()
+        ],
+    }
+
+
+@panel_action("botany_stand", "buy")
+def buy_produce(game, state, args):
+    item_id = args["item_id"]
+    if item_id in BOTANIST_STAND_PRICES:
+        _sell(game, item_id, BOTANIST_STAND_PRICES[item_id], "the Botanist")

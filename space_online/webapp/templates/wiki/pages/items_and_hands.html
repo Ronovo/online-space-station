@@ -1,0 +1,47 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>Inventory</h2>
+<p>
+  Open your inventory from the Character Sheet. Items of the same kind stack. Select an item to <b>Examine</b> it, or
+  open its <b>Actions</b>:
+</p>
+<ul>
+  <li><b>Read</b> books like the Welcome Guide and the Station Map.</li>
+  <li><b>Eat</b> food and <b>Drink</b> drinks. Alcoholic drinks raise your alcohol level.</li>
+  <li><b>Use</b> a Medkit or Aloe to heal, or open a Basic Tools set.</li>
+  <li><b>Equip</b> an item into one of your hands.</li>
+  <li><b>Drop</b> an item. It asks first, because a dropped item is gone for good.</li>
+</ul>
+
+<h2>Hands</h2>
+<p>
+  You have a left and a right hand, and the <b>Hands</b> button is on every screen. Some things only work from your
+  hands: seeds, liquids and tools are used on Botany planters by holding them. See {{ w.link("Botany") }}.
+  Unequipping puts the item back in your inventory.
+</p>
+
+<h2>Your storage locker</h2>
+<p>
+  The locker in your Quarters starts with: {{ facts.locker_items|join(", ") }}. Take items out to carry them, and
+  store anything you don't need right now.
+</p>
+
+<h2>Useful items</h2>
+<ul>
+  <li><b>Medkit</b>: heals every injured limb by 10% and lowers each kind of damage by 10%. It's kept if you're
+    already at full health.</li>
+  <li><b>Aloe</b>: lowers burn damage by {{ facts.aloe_relief }}%. It's kept if you have no burns.</li>
+  <li><b>Basic Tools</b>: a set holding a Wrench, Screwdriver and Wirecutters. Use it to pull a tool out or put one
+    back. Carrying the set lets you repair faulted systems. See {{ w.link("Engineering") }}.</li>
+</ul>
+
+<h2>Where items come from</h2>
+<ul>
+  <li>The Engineering fabricator makes tools and books for anyone. See {{ w.link("Engineering") }}.</li>
+  <li>The Botany vending machine and the Botanist's produce stand sell seeds, supplies and produce. See
+    {{ w.link("Botany") }}.</li>
+  <li>The Bar sells drinks. See {{ w.link("Bar") }}.</li>
+  <li>Hallway supply crates and vending machines sometimes hand out items.</li>
+</ul>
+{% endblock %}

@@ -344,3 +344,40 @@ fieldset.group legend { padding: 0 6px; }
   .bar { width: 100%; max-width: 300px; }
   .limb-grid, .detail-grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* Player Guide */
+.wiki { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 24px; align-items: start; }
+.wiki-nav { position: sticky; top: 16px; padding: 12px 14px; background: #111; border: 1px solid #333; font-size: 14px; }
+.wiki-nav-home { display: block; margin-bottom: 8px; color: var(--fg); font-weight: bold; text-decoration: none; }
+.wiki-nav-section { margin: 12px 0 4px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+.wiki-nav ul { list-style: none; margin: 0; padding: 0; }
+.wiki-nav li { margin: 3px 0; }
+.wiki-nav a[aria-current="page"] { color: var(--fg); font-weight: bold; text-decoration: none; }
+.wiki-page { max-width: 760px; line-height: 1.55; }
+.wiki-page h1 { margin: 4px 0 12px; }
+.wiki-page h2 { margin-top: 28px; padding-bottom: 4px; border-bottom: 1px solid #333; font-size: 20px; }
+.wiki-page h3 { margin-top: 20px; font-size: 17px; }
+.wiki-crumb { margin: 0; color: var(--muted); font-size: 13px; }
+.wiki-lead { color: #ddd; }
+.wiki-infobox { float: right; width: 260px; margin: 0 0 12px 20px; padding: 10px 14px; background: #111; border: 1px solid #333; font-size: 14px; }
+.wiki-infobox dl { margin: 0; }
+.wiki-infobox dt { color: var(--muted); font-size: 12px; text-transform: uppercase; margin-top: 8px; }
+.wiki-infobox dt:first-child { margin-top: 0; }
+.wiki-infobox dd { margin: 2px 0 0; }
+.wiki-infobox ul { margin: 0; padding-left: 18px; }
+.wiki-table { border-collapse: collapse; margin: 10px 0; font-size: 14px; }
+.wiki-table th, .wiki-table td { padding: 5px 12px; border: 1px solid #333; text-align: left; }
+.wiki-table th { background: #1a1a1a; }
+.wiki-index { max-width: 900px; margin: 0 auto; }
+.wiki-index h1 { margin-bottom: 8px; }
+.wiki-sections { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 20px; }
+.wiki-section { padding: 12px 18px; background: #111; border: 1px solid #333; }
+.wiki-section h2 { margin: 0 0 8px; font-size: 18px; }
+.wiki-section ul { margin: 0; padding-left: 18px; line-height: 1.8; }
+
+@media (max-width: 760px) {
+  .wiki { grid-template-columns: 1fr; }
+  .wiki-nav { position: static; }
+  .wiki-infobox { float: none; width: auto; margin: 0 0 12px; }
+  .wiki-table { display: block; overflow-x: auto; }
+}

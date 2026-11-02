@@ -9,6 +9,7 @@
     <div class="vitals-compact">
       <span class="{% if member.is_player %}player-name{% endif %}">{{ member.name }} ({{ member.job }})</span>
       <span class="status-badge" style="background: {{ member.status_color }}">{{ member.status }}</span>
+      {% if member.can_treat %}{{ ui.btn("Treat", "panel.treat", {"index": member.index}, "btn-small") }}{% endif %}
     </div>
     {% if p.details %}
     <div class="vitals-detail">

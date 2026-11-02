@@ -1,6 +1,8 @@
 import random
 
 from space_online.game.character_methods.character_creation import JOBS, REQUESTABLE_JOBS
+from space_online.game.helper_methods.door_control import SPECIAL_ROOM_DOORS
+from space_online.game.helper_methods.jail import set_warrant
 from space_online.game.helper_methods.npc_movement import reassign_npc_post
 from space_online.game.helper_methods.ui_panels import (
     choice_handler,
@@ -19,7 +21,11 @@ from space_online.game.special_rooms.shared import (
     room_action,
     text_line,
 )
-from space_online.game.maps.donut import BRIDGE_KEY
+from space_online.game.maps.donut import BRIDGE_KEY, SECURITY_KEY
+from space_online.game.special_rooms.engineering import apply_power_mode, set_system_level
+
+# Department doors a sector lockdown can close.
+LOCKDOWN_DOOR_KEYS = tuple(key for key in SPECIAL_ROOM_DOORS if key not in (BRIDGE_KEY, SECURITY_KEY))
 
 
 def pending_access_request(player_data):
@@ -182,6 +188,45 @@ class Bridge(SpecialRoomBase):
     @room_action(station="hop_station")
     def show_hop_access_control_console(self):
         self.game.open_panel("hop_console")
+
+
+def _lock_down_a_sector(game):
+    ship_map = game.ship_map
+    unlocked = [key for key in LOCKDOWN_DOOR_KEYS if not ship_map[key]["locked"]]
+    if not unlocked:
+        return "Every sector is already locked down."
+    door_key = random.choice(unlocked)
+    ship_map[door_key]["locked"] = True
+    return f"The {SPECIAL_ROOM_DOORS[door_key]['room_name']} door is now locked."
+
+
+def _warrant_for(game, suspect):
+    npc = next((n for n in game.station_crew if n.get("name") == suspect), None)
+    if npc is None or npc.get("warrant") or npc.get("in_jail"):
+        return f"{suspect} is no longer a suspect."
+    set_warrant(npc, "Suspected smuggling")
+    return f"A warrant has been issued for {suspect}."
+
+
+@choice_handler("approve_command_request")
+def approve_command_request(game, request, text, suspect):
+    if request == "life_support":
+        set_system_level(game, "life_support", 10)
+        result = "Life support is now at full power."
+    elif request == "power_saving":
+        apply_power_mode(game, "low")
+        result = "The station is now in Power Saving mode."
+    elif request == "lockdown":
+        result = _lock_down_a_sector(game)
+    else:
+        result = _warrant_for(game, suspect)
+    game.add_note(f"Approved: {text} {result}")
+    game.alert("Command Request", f"Approved. {result}")
+
+
+@choice_handler("deny_command_request")
+def deny_command_request(game, text):
+    game.add_note(f"Denied: {text}")
 
 
 def _grant_job(member, job):

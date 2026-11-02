@@ -1,6 +1,7 @@
 {% import "game/_ui.html" as ui %}
 <h2>Botany Vending Machine</h2>
 <p class="center">This machine dispenses seeds, liquids, and tools for the botany lab.</p>
+<p class="center">Your credits: {{ p.credits }}</p>
 <div class="toggle-row center">
   {% for kind, label in p.filters %}
     {{ ui.btn(label, "panel.filter", {"kind": kind}, "btn-toggle" ~ (" active" if p.filter == kind else "")) }}
@@ -12,8 +13,8 @@
     <div class="card-list" data-scroll-key="vend-available">
       {% for item in p.available %}
       <div class="item-card botany">
-        <span class="item-name">{{ item.name }}</span>
-        {{ ui.btn("Get Item", "panel.get", {"item_id": item.id}, "btn-small") }}
+        <span class="item-name">{{ item.name }} - {{ item.price }} credits ({{ item.stock }} left)</span>
+        {{ ui.btn("Buy", "panel.buy", {"item_id": item.id}, "btn-small", disabled=item.stock <= 0) }}
       </div>
       {% endfor %}
     </div>

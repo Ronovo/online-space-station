@@ -30,7 +30,7 @@ from space_online.game.objects.drinks import MAX_GLASS_POURS, add_ingredient
 from space_online.game.objects.items import add_to_inventory, get_item_definition, inventory_item_count
 from space_online.game.special_rooms.botany import harvest
 from space_online.game.special_rooms.bridge import approve
-from space_online.game.special_rooms.engineering import _update_system_level
+from space_online.game.special_rooms.engineering import set_system_level
 from space_online.game.special_rooms.med_bay import pay_for_healing
 from space_online.game.special_rooms.security import confirm, pardon
 from space_online.game.special_rooms.shared import MAX_NOTES, PLAYER_CREW_INDEX, add_note
@@ -119,9 +119,9 @@ def test_running_out_of_oxygen_sends_the_player_back_to_quarters():
 
 def test_life_support_already_at_zero_is_not_announced_again():
     game = new_game("Engineering", "Engineer")
-    _update_system_level(game, "life_support", 0)
+    set_system_level(game, "life_support", 0)
     game.player_data.pop("announcements")
-    _update_system_level(game, "life_support", 0)
+    set_system_level(game, "life_support", 0)
     assert "announcements" not in game.player_data
 
 
@@ -221,9 +221,9 @@ def test_the_doctor_charges_for_treatment():
 
 def test_restoring_life_support_clears_the_emergency_announcement():
     game = SpaceStationGame(create_character("Ada", "Engineering", "Engineer"))
-    _update_system_level(game, "life_support", 0)
+    set_system_level(game, "life_support", 0)
     assert game.player_data["announcements"]
-    _update_system_level(game, "life_support", 10)
+    set_system_level(game, "life_support", 10)
     assert "announcements" not in game.player_data
 
 

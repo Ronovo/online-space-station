@@ -1,0 +1,30 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set o = facts.oxygen %}
+{% block page %}
+<p>Life support is the power system that keeps oxygen flowing to the whole crew, you included.</p>
+
+<h2>When it fails</h2>
+<ul>
+  <li>At life support level {{ o.DAMAGE_THRESHOLD_LEVEL }} or below, everyone aboard takes oxygen damage. The lower the
+    level, the faster it builds, up to twice as fast at 0.</li>
+  <li>Switching life support off sends a station-wide emergency announcement. Damage holds off for
+    {{ o.OXYGEN_DEPLETION_GRACE_SECONDS }} seconds, so there's time to turn it back on.</li>
+  <li>You're warned as your oxygen damage passes {{ o.WARNING_THRESHOLDS|join("%, ") }}%.</li>
+  <li>At {{ o.DEATH_THRESHOLD }}% you pass out, and emergency systems revive you in your Quarters badly hurt. See
+    {{ w.link("Health") }}.</li>
+</ul>
+
+<h2>Recovering</h2>
+<p>
+  Once life support is back above level {{ o.DAMAGE_THRESHOLD_LEVEL }}, oxygen damage wears off by 1% every
+  {{ o.RECOVERY_SECONDS_PER_PERCENT }} seconds, but only down to {{ o.DOCTOR_REQUIRED_FLOOR }}% if it was that high or
+  higher. Past that point, a Doctor has to treat it. See {{ w.link("Medical") }}.
+</p>
+
+<h2>Keeping it running</h2>
+<p>
+  Life support is set from the Engineering Panel and drains the battery like any other system. See
+  {{ w.link("Power") }}. The Captain may also be asked to approve diverting power to it. See {{ w.link("Captain") }}.
+</p>
+{% endblock %}

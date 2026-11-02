@@ -1,0 +1,21 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You run the Bar. At the Bartender Station you mix drinks into the bar's stock, read the recipe book, and pour from
+  the drink menu, which is free for you. You can also lock and unlock the Bar door. See {{ w.link("Bar") }}.
+</p>
+
+<h2>Job events</h2>
+<p>
+  <b>Drink Order</b>: a crew member orders a mixed drink. Mix it, then press <b>Serve</b> at the Bartender Station to
+  hand it over for the drink's menu price. See {{ w.link("Errands and Job Events") }}.
+</p>
+
+<h2>Tips</h2>
+<ul>
+  <li>Keep a few mixed drinks in stock so you can serve orders straight away.</li>
+  <li>Free drinks still count toward your alcohol level. See {{ w.link("Health") }}.</li>
+</ul>
+{% endblock %}

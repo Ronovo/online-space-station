@@ -1,0 +1,37 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set j = facts.jail %}
+{% block page %}
+<h2>Warrants and fines</h2>
+<ul>
+  <li>A <b>warrant</b> means someone is wanted and will be arrested when Security catches them.</li>
+  <li>A <b>fine</b> is owed credits. When a fined crew member meets a Security Guard, the guard collects it. If they
+    can't pay, or refuse (about {{ (j.FINE_REFUSE_CHANCE * 100)|round|int }}% of the time), they're jailed instead.</li>
+  <li>Warrants go out when a Security Guard witnesses a crime, when crew commit petty crimes, when the Captain approves
+    one, or when Security issues one at the station.</li>
+</ul>
+
+<h2>The Security Station</h2>
+<p>Security Guards and the Captain can work it.</p>
+<ul>
+  <li><b>View Crew Manifest</b>: the whole crew by department, marking anyone wanted or jailed.</li>
+  <li><b>Issue Warrant/Fine</b>: issue a warrant or a fine to anyone, with a reason, or clear a warrant.</li>
+  <li><b>View Jail</b>: everyone locked up and how long they have left. <b>Pardon</b> releases a prisoner, and
+    <b>Add Time</b> adds {{ j.ADD_TIME_SECONDS // 60 }} minute to a sentence.</li>
+</ul>
+
+<h2>Arrests</h2>
+<ul>
+  <li>As a Security Guard or the Captain, you scan a room for warrants when you walk in, and get the choice to
+    <b>Arrest</b> or <b>Let Go</b> wanted crew you meet in rooms or halls, or call back to their post. Some will offer a
+    bribe of {{ j.BRIBE_MIN_CREDITS }}-{{ j.BRIBE_MAX_CREDITS }} credits to be let go, which clears their warrant.</li>
+  <li>Security Guard crew arrest wanted crew they find on their patrols, including you.</li>
+  <li>Station security bots can arrest you too if you're wanted.</li>
+</ul>
+
+<h2>Jail</h2>
+<p>
+  A sentence lasts {{ j.DEFAULT_SENTENCE_SECONDS // 60 }} minutes. While jailed you're held in the Security office and
+  can't leave or walk the halls until you're released or pardoned.
+</p>
+{% endblock %}

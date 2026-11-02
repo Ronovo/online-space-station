@@ -1,0 +1,60 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set b = facts.botany %}
+{% block page %}
+<h2>For visitors</h2>
+<ul>
+  <li><b>View Plants</b>: look over the lab's {{ b.PLANTER_ROWS }} rows of {{ b.PLANTERS_PER_ROW }} planters.</li>
+  <li><b>Talk to Botanist</b>, while the Botanist is on duty, opens their produce stand:
+    {% for item_id, price in b.BOTANIST_STAND_PRICES.items() %}{{ facts.item_name(item_id) }} {{ price }}{{ ", " if not loop.last }}{% endfor %}
+    credits.</li>
+</ul>
+
+<h2>The Botany Station</h2>
+<p>Botanists, the Head of Personnel and the Captain can work it.</p>
+
+<h3>Vending machine</h3>
+<p>
+  Sells seeds, liquids and tools for credits. Each item has a limited stock, and the machine restocks one of each every
+  {{ b.VEND_RESTOCK_SECONDS // 60 }} minutes.
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Item</th><th>Price</th><th>Stock</th></tr></thead>
+  <tbody>
+    {% for item_id, (price, stock) in b.BOTANY_VEND_CATALOG.items() %}
+    <tr><td>{{ facts.item_name(item_id) }}</td><td>{{ price }}</td><td>{{ stock }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Growing plants</h3>
+<ol>
+  <li>Hold seeds in a hand, open <b>View Plants</b> at the station, pick a row, and use your hand on an empty planter.</li>
+  <li>A plant grows through {{ b.GROWTH_STAGES }} stages, from Seedling to Mature. Each stage takes:
+    {% for plant, minutes in facts.stage_minutes %}{{ plant }} {{ minutes }} minutes{{ ", " if not loop.last }}{% endfor %}.</li>
+  <li>Water a plant with the Watering Can before each stage ends. A plant that reaches a new stage unwatered dies.</li>
+  <li>When it's mature, <b>Harvest</b> it into your inventory.</li>
+</ol>
+
+<h3>Supplies</h3>
+<ul>
+  <li><b>Miracle Grow</b>: the rest of the plant's growth goes {{ (b.MIRACLE_GROW_SPEED_BONUS * 100)|round|int }}%
+    faster.</li>
+  <li><b>Plentiful Harvest</b>: the harvest yields {{ b.PLENTIFUL_HARVEST_YIELD_MULTIPLIER }} times as much.</li>
+  <li><b>"The Ooze" Mutagen</b>: has no effect yet.</li>
+  <li><b>Trowel</b> clears a dead or unwanted crop, and a <b>Chainsaw</b> clears a tree. Both are kept.</li>
+  <li>Supplies that would do nothing for a plant stay in your hand.</li>
+</ul>
+
+<h3>Keeping watch</h3>
+<p>
+  You're told when a plant dies or is ready to harvest. Station Status counts planters that need water or have dead
+  plants. See {{ w.link("Station Status") }}.
+</p>
+
+<h2>Produce</h2>
+<p>
+  {{ facts.food_produce[:-1]|join(", ") }} and {{ facts.food_produce[-1] }} are food. Aloe is a medicinal herb that soothes burns. See
+  {{ w.link("Items and Hands") }}. The Bartender also asks the Botanist for produce. See {{ w.link("Botanist") }}.
+</p>
+{% endblock %}

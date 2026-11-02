@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Player Guide - Space Station Explorer{% endblock %}
+{% block content %}
+<section class="wiki-index">
+  <h1>Player Guide</h1>
+  <p class="wiki-lead">
+    Everything you can do aboard the station: how to get around, how each station system works, and what every job
+    is for. Start with the Basics if you're new.
+  </p>
+  <div class="wiki-sections">
+    {% for section, titles in sections %}
+    <section class="wiki-section">
+      <h2>{{ section }}</h2>
+      <ul>
+        {% for page_title in titles %}
+        <li><a href="{{ wiki_url(page_title) }}">{{ page_title }}</a></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

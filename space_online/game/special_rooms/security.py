@@ -2,6 +2,7 @@ from space_online.game.helper_methods.jail import (
     add_jail_time,
     has_fine,
     is_jailed,
+    set_warrant,
     jail_seconds_remaining,
     list_prisoners,
     release_member,
@@ -178,8 +179,7 @@ def confirm(game, state, args):
         game.alert("Reason Required", f"Enter a reason for the {state['kind']}.", kind="warning")
         return
     if state["kind"] == "warrant":
-        member["warrant"] = True
-        member["warrant_reason"] = reason
+        set_warrant(member, reason)
         game.close_panel("charge")
         game.alert("Warrant Issued", f"Warrant issued for {member.get('name', 'Unknown')}.\nReason: {reason}")
         return

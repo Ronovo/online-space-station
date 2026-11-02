@@ -1,4 +1,4 @@
-from space_online.game.objects.items import add_to_inventory, get_item_definition
+from space_online.game.objects.items import HAND_SIDES, add_to_inventory, get_item_definition
 from space_online.game.helper_methods.power_constants import (
     BALANCED_SYSTEM_LEVELS,
     BATTERY_BAND_COLORS,
@@ -34,7 +34,7 @@ from space_online.game.helper_methods.door_control import can_control_door
 from space_online.game.maps.donut import ENGINEERING_KEY
 
 FABRICATABLE_ITEM_IDS = {
-    "Tool": ["wrench", "screwdriver", "wirecutters", "basic_tools"],
+    "Tool": ["wrench", "screwdriver", "wirecutters", "repair_tool", "basic_tools"],
     "Book": ["welcome_guide", "station_map"],
 }
 
@@ -58,6 +58,9 @@ POWER_MODE_LEVELS = {
     "low": LOW_POWER_SYSTEM_LEVELS,
     "emergency": {"life_support": 10, "hallway_lighting": 1, "security_systems": 3, "communication_array": 1},
 }
+
+# Either of these, carried or held, repairs a faulted system.
+REPAIR_TOOL_IDS = ("basic_tools", "repair_tool")
 
 
 class Engineering(SpecialRoomBase):
@@ -198,6 +201,7 @@ def engineering_panel(game, state):
             **control,
             "value": value,
             "online": value > 0,
+            "faulted": control["key"] in power["faults"],
             "draw": _power_draw(control["key"], value),
         })
     return {
@@ -227,7 +231,7 @@ def toggle_solar(game, state, args):
     )
 
 
-def _update_system_level(game, system_key, value):
+def set_system_level(game, system_key, value):
     """Set a system's power level and apply life-support side effects."""
     levels = game.player_data["station_power"]["system_levels"]
     previous_value = levels.get(system_key, 10)
@@ -250,18 +254,59 @@ def set_level(game, state, args):
         return
     system_key = args["system"]
     value = int(args["value"])
-    if system_key in SYSTEM_POWER_RATES and 0 <= value <= 10:
-        _update_system_level(game, system_key, value)
+    if system_key not in SYSTEM_POWER_RATES or not 0 <= value <= 10:
+        return
+    if value > 0 and system_key in game.player_data["station_power"]["faults"]:
+        game.alert("System Fault", f"{system_name(system_key)} is faulted. Repair it before powering it back up.",
+                   kind="warning")
+        return
+    set_system_level(game, system_key, value)
 
 
 @panel_action("engineering_panel")
 def set_power_mode(game, state, args):
     mode = args["mode"]
-    if not has_engineering_access(game.player_data) or mode not in POWER_MODE_LEVELS:
-        return
-    game.player_data["station_power"]["power_mode"] = mode
+    if has_engineering_access(game.player_data) and mode in POWER_MODE_LEVELS:
+        apply_power_mode(game, mode)
+
+
+def apply_power_mode(game, mode):
+    """Switch to a power mode, setting every system that isn't faulted to the mode's level."""
+    power = game.player_data["station_power"]
+    power["power_mode"] = mode
     for system_key, value in POWER_MODE_LEVELS[mode].items():
-        _update_system_level(game, system_key, value)
+        if system_key not in power["faults"]:
+            set_system_level(game, system_key, value)
+
+
+def system_name(system_key):
+    return next(control["name"] for control in SYSTEM_CONTROLS if control["key"] == system_key)
+
+
+def _repair_tool(player_data):
+    """The first carried or held item that can repair a faulted system, or None."""
+    held = [player_data["hands"][side] for side, _ in HAND_SIDES]
+    for item in player_data["inventory"] + [item for item in held if item]:
+        if item.get("id") in REPAIR_TOOL_IDS:
+            return item
+    return None
+
+
+@panel_action("engineering_panel")
+def repair(game, state, args):
+    power = game.player_data["station_power"]
+    system_key = args["system"]
+    if not has_engineering_access(game.player_data) or system_key not in power["faults"]:
+        return
+    tool = _repair_tool(game.player_data)
+    name = system_name(system_key)
+    if tool is None:
+        game.alert("Repair", f"You need Basic Tools or a Repair Tool to repair the {name}.")
+        return
+    power["faults"].remove(system_key)
+    set_system_level(game, system_key, POWER_MODE_LEVELS[power["power_mode"]][system_key])
+    game.add_note(f"Repaired the {name} with the {tool['name']}.")
+    game.alert("Repair", f"You repair the {name} with the {tool['name']}. It is back online.")
 
 
 def announce_oxygen_depletion(game):

@@ -1,0 +1,28 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>For visitors</h2>
+<ul>
+  <li><b>Order Drinks</b>, while the Bartender is on duty: the drink menu has basic drinks plus any mixed drinks the
+    bar has in stock. Filter it by basic, mixed, alcoholic or non-alcoholic. A drink goes into your inventory to drink
+    whenever you like.</li>
+  <li><b>Socialize</b>: chat with whoever's around.</li>
+  <li>Alcoholic drinks raise your alcohol level. See {{ w.link("Health") }}.</li>
+</ul>
+
+<h2>The Bartender Station</h2>
+<p>Bartenders, the Head of Personnel and the Captain can work it.</p>
+<ul>
+  <li><b>Mix Drinks</b>: pour up to {{ facts.max_pours }} ingredients into a glass and mix. If they match a recipe, the
+    drink goes into the bar's stock and onto the menu. If not, you're told what went wrong.</li>
+  <li><b>View Recipes</b>: the recipe book, by category, with a search by name, ingredient or description, and the
+    full list of ingredients.</li>
+  <li><b>Serve Regular Drinks</b>: the drink menu. Drinks are free for the Bartender.</li>
+</ul>
+
+<h2>Drink orders</h2>
+<p>
+  As a Bartender, a hallway job event can bring a crew member's order for a mixed drink. Mix it, then serve it from
+  the Bartender Station for the drink's menu price. See {{ w.link("Bartender") }}.
+</p>
+{% endblock %}

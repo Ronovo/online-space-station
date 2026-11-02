@@ -6,18 +6,37 @@ BOTANY_SEED_IDS = (
     "wheat_seeds",
     "carrot_seeds",
     "apple_seeds",
+    "aloe_seeds",
 )
 
-BOTANY_LIQUID_TOOL_IDS = (
-    "watering_can",
-    "miracle_grow",
-    "plentiful_harvest",
-    "the_ooze_mutagen",
-    "trowel",
-    "chainsaw",
-)
+# item_id -> (price in credits, most the vending machine holds)
+BOTANY_VEND_CATALOG = {
+    "tomato_seeds": (15, 10),
+    "potato_seeds": (10, 10),
+    "wheat_seeds": (10, 10),
+    "carrot_seeds": (10, 10),
+    "apple_seeds": (25, 5),
+    "aloe_seeds": (20, 5),
+    "watering_can": (40, 3),
+    "miracle_grow": (50, 5),
+    "plentiful_harvest": (75, 5),
+    "the_ooze_mutagen": (100, 3),
+    "trowel": (30, 3),
+    "chainsaw": (150, 2),
+}
 
-BOTANY_VEND_IDS = BOTANY_SEED_IDS + BOTANY_LIQUID_TOOL_IDS
+# The vending machine gets back one of each item this often, up to its maximum.
+VEND_RESTOCK_SECONDS = 5 * 60
+
+# produce item_id -> price at the Botanist NPC's produce stand
+BOTANIST_STAND_PRICES = {
+    "potato": 15,
+    "wheat": 15,
+    "carrot": 15,
+    "tomato": 20,
+    "apple": 30,
+    "aloe": 40,
+}
 
 GROWTH_STAGES = 5  # 1..5, mature at 5
 
@@ -111,6 +130,19 @@ BOTANY_ITEMS = {
         },
         "actions": ["examine", "equip", "drop"],
     },
+    "aloe_seeds": {
+        "id": "aloe_seeds",
+        "name": "Aloe Seeds",
+        "description": "Grows into aloe plants whose gel soothes burns.",
+        "category": "Botany",
+        "attributes": {
+            "produces": "aloe",
+            "plant_name": "Aloe",
+            "growth_class": "crop",
+            "vend_kinds": ["seed"],
+        },
+        "actions": ["examine", "equip", "drop"],
+    },
     "watering_can": {
         "id": "watering_can",
         "name": "Watering Can",
@@ -192,11 +224,27 @@ def empty_planter():
         "miracle_grow": 0.0,
         "yield_multiplier": 1,
         "ooze_applied": False,
+        "announced": None,
     }
 
 
 def new_botany():
-    return {"planters": [empty_planter() for _ in range(PLANTERS_PER_ROW * PLANTER_ROWS)]}
+    return {
+        "planters": [empty_planter() for _ in range(PLANTERS_PER_ROW * PLANTER_ROWS)],
+        "vending_stock": {item_id: most for item_id, (_, most) in BOTANY_VEND_CATALOG.items()},
+        "vending_restocked_at_seconds": 0.0,
+    }
+
+
+def restock_vending(botany, elapsed_seconds):
+    """Add the restocks due since the last one to the vending stock. Returns the stock."""
+    stock = botany["vending_stock"]
+    due = int((elapsed_seconds - botany["vending_restocked_at_seconds"]) // VEND_RESTOCK_SECONDS)
+    if due > 0:
+        for item_id, (_, most) in BOTANY_VEND_CATALOG.items():
+            stock[item_id] = min(most, stock[item_id] + due)
+        botany["vending_restocked_at_seconds"] += due * VEND_RESTOCK_SECONDS
+    return stock
 
 
 def growth_duration_seconds(growth_class):
@@ -209,6 +257,20 @@ def effective_stage_seconds(growth_class, miracle_grow=0.0):
     base = growth_duration_seconds(growth_class)
     boosted = base * (1 - float(miracle_grow or 0.0))
     return max(MIN_STAGE_SECONDS, boosted)
+
+
+def apply_miracle_grow(planter, elapsed_seconds):
+    """Give a planter Miracle Grow from now on.
+
+    Stages are timed from planted_at_seconds, so it moves to where the faster
+    stages would have put the plant's current progress.
+    """
+    growth_class = planter["growth_class"]
+    old_stage_seconds = effective_stage_seconds(growth_class, planter["miracle_grow"])
+    new_stage_seconds = effective_stage_seconds(growth_class, MIRACLE_GROW_SPEED_BONUS)
+    grown = max(0.0, float(elapsed_seconds) - float(planter["planted_at_seconds"]))
+    planter["planted_at_seconds"] = elapsed_seconds - grown * new_stage_seconds / old_stage_seconds
+    planter["miracle_grow"] = MIRACLE_GROW_SPEED_BONUS
 
 
 def _stage_timing(planted_at_seconds, growth_class, elapsed_seconds, miracle_grow):

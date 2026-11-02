@@ -1,0 +1,41 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<p>
+  Space Station Explorer is a text game played in your browser. You live aboard a space station as one crew member,
+  doing your job alongside the rest of the crew.
+</p>
+
+<h2>Your account</h2>
+<ul>
+  <li>Register with a username, a password and a security question. If the game is linked to the portfolio, you can
+    also log in with your portfolio account.</li>
+  <li><b>Forgot password?</b> resets your password with your security answer. Five wrong answers lock resets for 15
+    minutes, and five wrong passwords in a row lock logins for a minute.</li>
+</ul>
+
+<h2>Your character</h2>
+<ul>
+  <li>Each account has one character. You pick a name, a department and a job. Your job sets your starting credits
+    and which station doors and controls you can use. Each job has its own page under Jobs in the
+    <a href="{{ url_for('wiki.index') }}">guide index</a>.</li>
+  <li>You start in your Quarters with a few items in your storage locker. See {{ w.link("Items and Hands") }}.</li>
+  <li>Your progress is saved after every action. <b>Save and Exit</b> takes you back to your account page, and
+    <b>Continue</b> picks up where you left off. The Bed in your Quarters just confirms the save.</li>
+  <li>Deleting your character on the account page erases all its progress, so you can roll a new one.</li>
+</ul>
+
+<h2>The Character Sheet</h2>
+<p>
+  Open it from any screen. It shows your job, department, credits, alcohol level, limb health and damage, and opens
+  your inventory, your stock holdings and your notes. Notes are a log of everything that has happened to you, newest
+  first.
+</p>
+
+<h2>Where to go next</h2>
+<ul>
+  <li>{{ w.link("The Station") }}: getting around and what's in each room.</li>
+  <li>{{ w.link("Health") }}: staying alive.</li>
+  <li>{{ w.link("Errands and Job Events") }}: the work your job sends you.</li>
+</ul>
+{% endblock %}

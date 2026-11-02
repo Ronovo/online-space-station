@@ -7,6 +7,7 @@ from space_online.game.helper_methods.alcohol_helper import (
     sober_up_cost,
 )
 from space_online.game.helper_methods.oxygen_helper import DOCTOR_REQUIRED_FLOOR
+from space_online.game.helper_methods.errands import finish_errand, pending_errand
 from space_online.game.helper_methods.health_bands import DAMAGE_TYPES, average_limb_health, damage_band, health_band, limb_label
 from space_online.game.helper_methods.station_status import crew_health_status
 from space_online.game.special_rooms.shared import (
@@ -25,6 +26,14 @@ COST_MULTIPLIERS = {
     "oxygen": 2,
     "burn": 3,
 }
+
+
+def heal_fully(member):
+    """Restore every limb and clear every damage type."""
+    for limb in member["limbs"]:
+        member["limbs"][limb] = 100
+    for damage_type in member["damage"]:
+        member["damage"][damage_type] = 0
 
 
 def assess_injuries(player_data):
@@ -303,11 +312,11 @@ class MedBay(SpecialRoomBase):
     @room_action(station="medbay_station")
     def heal_player(self):
         original_health = self.player_data["limbs"].copy()
-        for limb in self.player_data["limbs"]:
-            self.player_data["limbs"][limb] = 100
+        original_damage = self.player_data["damage"].copy()
+        heal_fully(self.player_data)
 
         healing_report = "Medical Treatment Results:\n\n"
-        healing_report += "All limbs restored to full health.\n\n"
+        healing_report += "All limbs restored to full health and all burn, poison and oxygen damage cleared.\n\n"
         healing_report += "Previous Status:\n"
 
         injury_details = []
@@ -316,6 +325,10 @@ class MedBay(SpecialRoomBase):
             healing_report += f"- {limb_name}: {health}% → 100%\n"
             if health < 100:
                 injury_details.append(f"{limb_name} ({health}% → 100%)")
+        for damage_type, value in original_damage.items():
+            healing_report += f"- {damage_type.title()}: {value:.0f}% → 0%\n"
+            if value > 0:
+                injury_details.append(f"{damage_type.title()} ({value:.0f}% → 0%)")
 
         self.game.alert("Medical Treatment", healing_report)
         if injury_details:
@@ -350,10 +363,7 @@ def pay_for_healing(game):
     original_damage = player_data["damage"].copy()
     original_alcohol = player_data["alcohol_percent"]
 
-    for limb in player_data["limbs"]:
-        player_data["limbs"][limb] = 100
-    for damage_type in player_data["damage"]:
-        player_data["damage"][damage_type] = 0
+    heal_fully(player_data)
 
     sobered = sober_cost > 0
     if sobered:
@@ -401,7 +411,7 @@ VITALS_DAMAGE_ICONS = {"burn": "🔥", "poison": "☣️", "oxygen": "💨"}
 @register_panel("crew_vitals", "Crew Vitals Monitor")
 def crew_vitals_panel(game, state):
     crew = []
-    for crew_member in [game.player_data] + game.station_crew:
+    for crew_index, crew_member in [(None, game.player_data)] + list(enumerate(game.station_crew)):
         status, status_color = crew_health_status(crew_member)
         limbs = crew_member.get("limbs", {})
         damage = crew_member.get("damage", {})
@@ -409,6 +419,8 @@ def crew_vitals_panel(game, state):
             "name": crew_member.get("name", "N/A"),
             "job": crew_member.get("job", "N/A"),
             "is_player": crew_member is game.player_data,
+            "index": crew_index,
+            "can_treat": crew_index is not None and assess_injuries(crew_member)["total_cost"] > 0,
             "status": status,
             "status_color": status_color,
             "limbs": [
@@ -431,3 +443,29 @@ def crew_vitals_panel(game, state):
 @panel_action("crew_vitals")
 def toggle_details(game, state, args):
     state["details"] = not state.get("details")
+
+
+@panel_action("crew_vitals")
+def treat(game, state, args):
+    """Heal an injured crew member, who pays the treatment cost from their own credits."""
+    crew_index = int(args["index"])
+    if not 0 <= crew_index < len(game.station_crew):
+        return
+    patient = game.station_crew[crew_index]
+    cost = assess_injuries(patient)["total_cost"]
+    if cost == 0:
+        return
+    paid = min(cost, patient["credits"])
+    patient["credits"] -= paid
+    game.player_data["credits"] += paid
+    heal_fully(patient)
+
+    name = patient.get("name", "The patient")
+    note = f"Treated {name} for {paid} credits."
+    message = f"You treat {name}. They pay you {paid} credits."
+    errand = pending_errand(game.player_data)
+    if errand and errand["kind"] == "treat" and errand["patient"] == patient.get("name"):
+        finish_errand(game, note, message)
+        return
+    game.add_note(note)
+    game.alert("Treatment", message)

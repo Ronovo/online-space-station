@@ -195,18 +195,19 @@ def test_nobody_to_see_when_no_one_is_the_doctor():
     assert buttons(game) == [("Request Health Check", "room.health_check"), ("Back to Station Menu", "room.set_mode")]
 
 
-def test_the_doctor_heals_their_own_limbs_at_the_station():
+def test_the_doctor_heals_all_their_own_injuries_at_the_station():
     game = in_medbay("Medical", "Doctor")
-    hurt(game.player_data, head=40, burn=30)
+    hurt(game.player_data, head=40, burn=30, poison=12)
     game.ui["room_mode"] = "medbay_station"
     assert [label for label, _ in buttons(game)] == ["Heal Injuries", "Check Crew Vitals", "Back to Station Menu"]
     game.perform("room.heal_player", {})
     assert game.player_data["limbs"]["head"] == 100
-    assert game.player_data["damage"]["burn"] == 30
+    assert game.player_data["damage"] == {"burn": 0, "poison": 0, "oxygen": 0}
     title, message = last_message(game)
-    assert title == "Medical Treatment" and "- Head: 40% → 100%" in message
+    assert title == "Medical Treatment"
+    assert all(line in message for line in ("- Head: 40% → 100%", "- Burn: 30% → 0%", "- Oxygen: 0% → 0%"))
     assert game.player_data["notes"][-1]["text"] == ("Received advanced medical treatment at MedBay Station. "
-                                                     "Healed: Head (40% → 100%)")
+                                                     "Healed: Head (40% → 100%), Burn (30% → 0%), Poison (12% → 0%)")
     game.perform("room.heal_player", {})
     assert len(game.player_data["notes"]) == 1
 
@@ -225,3 +226,49 @@ def test_the_crew_vitals_monitor():
     game.perform("panel.toggle_details", {})
     assert game.view()["panel"]["ctx"]["details"] is True
     assert reports(game) == []
+
+
+def crew_vitals(game):
+    game.ui["room_mode"] = "medbay_station"
+    game.perform("room.show_crew_vitals", {})
+    return game.view()["panel"]["ctx"]
+
+
+def test_injured_crew_can_be_treated_and_pay_for_it():
+    game = in_medbay("Medical", "Doctor")
+    patient = hurt(game.station_crew[0], head=80, burn=10)
+    rows = crew_vitals(game)["crew"]
+    assert [(row["index"], row["can_treat"]) for row in rows[:3]] == [(None, False), (0, True), (1, False)]
+    credits, cost = patient["credits"], 20 + 10 * 3
+    game.perform("panel.treat", {"index": 0})
+    assert (patient["limbs"]["head"], patient["damage"]["burn"]) == (100, 0)
+    assert (patient["credits"], game.player_data["credits"]) == (credits - cost, 7500 + cost)
+    assert last_message(game) == ("Treatment", f"You treat {patient['name']}. They pay you {cost} credits.")
+    assert game.player_data["notes"][-1]["text"] == f"Treated {patient['name']} for {cost} credits."
+
+
+def test_a_patient_pays_only_what_they_have_and_healthy_or_missing_crew_need_nothing():
+    game = in_medbay("Medical", "Doctor")
+    patient = hurt(game.station_crew[0], head=0)
+    patient["credits"] = 30
+    crew_vitals(game)
+    for index in (1, 99):
+        game.perform("panel.treat", {"index": index})
+    assert game._messages == []
+    game.perform("panel.treat", {"index": 0})
+    assert (patient["credits"], game.player_data["credits"], patient["limbs"]["head"]) == (0, 7530, 100)
+
+
+def test_treating_the_patient_from_an_errand_completes_it():
+    game = in_medbay("Medical", "Doctor")
+    patient = hurt(game.station_crew[1], chest=50)
+    bystander = hurt(game.station_crew[0], chest=90)
+    game.player_data["errand"] = {"kind": "treat", "room": MEDBAY_KEY, "patient": patient["name"],
+                                  "summary": "Treat them"}
+    crew_vitals(game)
+    game.perform("panel.treat", {"index": 0})
+    assert "errand" in game.player_data
+    game.perform("panel.treat", {"index": 1})
+    assert "errand" not in game.player_data
+    assert last_message(game) == ("Errand Complete", f"You treat {patient['name']}. They pay you 50 credits.")
+    assert bystander["limbs"]["chest"] == 100

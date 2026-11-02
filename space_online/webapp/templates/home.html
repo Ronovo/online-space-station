@@ -10,7 +10,13 @@
     <div><span class="label">Last played</span> {{ character.updated_at|replace("T", " ") }}</div>
   </div>
   <a class="btn btn-wide" href="{{ url_for('play') }}">Continue</a>
+  {% else %}
+  <p>You don't have a character yet.</p>
+  <a class="btn btn-wide" href="{{ url_for('new_character') }}">New Character</a>
+  {% endif %}
+  <p class="center"><a class="btn" href="{{ url_for('wiki.index') }}">Player Guide</a></p>
 
+  {% if character %}
   <form method="post" action="{{ url_for('delete_character') }}" class="danger-zone">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <h2>Delete Character</h2>
@@ -21,9 +27,6 @@
     </label>
     <button class="btn btn-danger" type="submit">Delete Character</button>
   </form>
-  {% else %}
-  <p>You don't have a character yet.</p>
-  <a class="btn btn-wide" href="{{ url_for('new_character') }}">New Character</a>
   {% endif %}
 </section>
 {% endblock %}

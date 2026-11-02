@@ -25,10 +25,12 @@ def clamp_lighting_for_battery(station_power):
     band = battery_lighting_band(station_power["battery_level"])
     if station_power.get("last_lighting_battery_band") == band:
         return
+    station_power["last_lighting_battery_band"] = band
+    if "hallway_lighting" in station_power["faults"]:
+        return
     low, high = LIGHTING_BANDS[band]
     levels = station_power["system_levels"]
     levels["hallway_lighting"] = max(low, min(high, int(levels["hallway_lighting"])))
-    station_power["last_lighting_battery_band"] = band
 
 
 def lighting_style(hallway_lighting, place="hallway"):

@@ -13,7 +13,20 @@ accounts, where each account owns one character whose progress is saved on the s
 - **Crew Roster**: Start alongside procedurally staffed NPC crew (department heads and assistants)
 - **Persistent Progress**: Your character's progress is saved to the server after every action. Deleting the character erases that progress so you can roll a new one
 
+## Player Guide
+
+The game has a wiki-style Player Guide at `/wiki/`, linked from the login and home pages and readable without logging
+in. It has pages for the basics, each station system and each job, at `/wiki/<Page_Name>`, for example
+`/wiki/Staff_Assistant`. Prices, credits and other numbers on its pages are read from the game, so they stay current.
+The pages live in `space_online/webapp/templates/wiki/pages/`, and `space_online/webapp/wiki.py` lists them by section.
+
 ## Station Systems
+
+### Jobs and Errands
+- Every job has its own hallway job events
+- Errands: one job task at a time, shown in the station status until it's done. Staff Assistants are sent to help
+  out or bring items to department crew for 25-75 credits, the Botanist delivers produce to the Bartender, the
+  Bartender serves drink orders, and the Doctor treats injured crew
 
 ### Power Management
 - Monitor and manage station battery levels
@@ -21,11 +34,14 @@ accounts, where each account owns one character whose progress is saved on the s
 - Solar panel charging system
 - Power modes including emergency settings
 - Engineering panel access for Engineers, the Captain and the Head of Personnel
+- System faults knock out lighting, security or communications until they are repaired from the Engineering panel
+  with Basic Tools or a Repair Tool
 
 ### Medical System
 - Health tracking for limbs, burns, poison, and oxygen
 - Paid medical treatment and health assessments in MedBay
-- Free limb treatment and crew vitals monitoring for Doctors, the Captain and the Head of Personnel
+- Free full treatment and crew vitals monitoring for Doctors, the Captain and the Head of Personnel
+- Injured crew can be treated from the crew vitals monitor, and pay for it from their own credits
 - Oxygen damage when life support is underpowered, with emergency revive if it reaches critical levels
 
 ### Security System
@@ -35,6 +51,7 @@ accounts, where each account owns one character whose progress is saved on the s
 - Warrants, fines and jail time: Security Guards arrest crew with warrants, wanted crew sometimes offer a bribe
   to be let go, unpaid fines are settled with a guard, and anyone who can work the Security station can pardon
   prisoners
+- Crew commit the odd petty crime, and a crime a Security Guard witnesses puts out a warrant for the culprit
 
 ### Stock Market
 - Real-time market simulation with automatic updates
@@ -46,14 +63,21 @@ accounts, where each account owns one character whose progress is saved on the s
 ### Bar System
 - Order drinks from the menu
 - Bartender drink mixing and recipe list
+- Drinks are free for the Bartender, and crew drink orders pay the Bartender for mixed drinks served from stock
 - Alcohol tracking on your character sheet
 - Social interactions
 
 ### Botany System
-- Seed collection from the botanist station
+- A vending machine at the botanist station sells seeds, liquids and tools for credits; each item has a limited
+  stock that restocks one every 5 minutes
 - Plant seeds across multiple planters, and water them before each growth stage or they die
-- Planter status monitoring, Miracle Grow and Plentiful Harvest
+- Planter status monitoring, Miracle Grow and Plentiful Harvest; supplies that would do nothing for a plant stay
+  in your hand
 - Mature plants are harvested from the botanist station; dead plants are cleared with a Trowel, or a Chainsaw for trees
+- A plant dying is reported as it happens, and the station status counts planters that need water or have died
+- Aloe, a medicinal herb whose leaves soothe burns
+- Crop requests: the Bartender asks the Botanist for produce and pays 50-150 credits when it's delivered at the Bar
+- When the Botanist is an NPC, talking to them opens a produce stand
 - Special access for Botanists
 
 ### Life Support
@@ -67,6 +91,8 @@ accounts, where each account owns one character whose progress is saved on the s
 - Crew manifest and NPC job assignment for the Head of Personnel
 - Public Access Control terminal for job-change requests
 - Captain and HoP door control for the Bridge
+- Command requests the Captain approves or denies: powering life support, a sector lockdown, Power Saving mode, or a
+  warrant for a suspect
 
 ### Engineering
 - Fabricator for creating tools and books

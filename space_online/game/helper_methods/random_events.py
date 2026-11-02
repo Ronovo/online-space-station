@@ -4,31 +4,57 @@ import random
 from space_online.game.helper_methods.health_bands import DAMAGE_TYPES, change_limb, limb_label, reduce_damage
 
 from space_online.game.character_methods.character_creation import REQUESTABLE_JOBS
+from space_online.game.helper_methods.door_control import SPECIAL_ROOM_DOORS
+from space_online.game.helper_methods.errands import pending_errand, with_article
 from space_online.game.helper_methods.game_clock import get_elapsed_seconds
-from space_online.game.helper_methods.jail import arrest_member, is_jailed, warrant_reason_text
-from space_online.game.helper_methods.npc_movement import find_hall_passersby
+from space_online.game.helper_methods.health_bands import LIMBS
+from space_online.game.helper_methods.jail import (
+    LAW_ABIDING_JOBS,
+    PETTY_CRIMES,
+    arrest_member,
+    is_jailed,
+    set_warrant,
+    warrant_reason_text,
+)
+from space_online.game.helper_methods.npc_movement import any_npc_for_job, find_hall_passersby
+from space_online.game.helper_methods.power_constants import FAULTABLE_SYSTEMS, fault_system
 from space_online.game.helper_methods.stock_market import generate_market_tip
-from space_online.game.objects.botany_items import BOTANY_SEED_IDS
+from space_online.game.maps.donut import BAR_KEY, BOTANY_KEY, ENGINEERING_KEY, MEDBAY_KEY, SECURITY_KEY
+from space_online.game.objects.drinks import MIXED_DRINKS
+from space_online.game.objects.food import PRODUCE
 from space_online.game.objects.items import ALL_ITEMS, add_to_inventory, get_item_definition
+from space_online.game.special_rooms.engineering import system_name
 
 HALLWAY_EVENT_CHANCE = 0.20
+CROP_REQUEST_MIN_REWARD = 50
+CROP_REQUEST_MAX_REWARD = 150
+ERRAND_MIN_REWARD = 25
+ERRAND_MAX_REWARD = 75
+PATIENT_MIN_DAMAGE = 15
+PATIENT_MAX_DAMAGE = 35
 EVENT_CATEGORIES = ("good", "neutral", "bad", "job")
 
-STAFF_ASSISTANT_REQUESTS = [
-    "The Botanist needs water for the planters.",
-    "The Captain needs a hand in Engineering.",
-    "The Bartender needs an ingredient for a drink.",
-    "The Doctor needs someone to restock bandages.",
-    "Security needs help filing paperwork.",
-]
+# A deliver errand with no item brings a random piece of produce.
+STAFF_ASSISTANT_ERRANDS = (
+    {"request": "The Botanist needs water for the planters.",
+     "giver": "Botanist", "room": BOTANY_KEY, "kind": "help", "label": "water the planters"},
+    {"request": "The Engineer needs a hand in Engineering.",
+     "giver": "Engineer", "room": ENGINEERING_KEY, "kind": "help", "label": "sort spare parts"},
+    {"request": "The Bartender needs an ingredient for a drink.",
+     "giver": "Bartender", "room": BAR_KEY, "kind": "deliver"},
+    {"request": "The Doctor needs someone to restock bandages.",
+     "giver": "Doctor", "room": MEDBAY_KEY, "kind": "deliver", "item": "medkit"},
+    {"request": "Security needs help filing paperwork.",
+     "giver": "Security Guard", "room": SECURITY_KEY, "kind": "help", "label": "file paperwork"},
+)
 
-CAPTAIN_REQUESTS = [
-    "Medbay requests authorization for emergency surgery supplies.",
-    "Engineering needs approval to divert power to life support.",
-    "Security requests permission to lock down a sector.",
-    "A department head wants a private briefing.",
-    "Cargo bay reports a missing shipment and needs orders.",
-]
+# {suspect} is filled with a crew member's name.
+CAPTAIN_REQUESTS = {
+    "life_support": "Engineering needs approval to divert power to life support.",
+    "lockdown": "Security requests permission to lock down a sector.",
+    "power_saving": "Engineering requests permission to switch the station to Power Saving mode.",
+    "warrant": "Security requests a warrant for {suspect} on suspicion of smuggling.",
+}
 
 
 def maybe_trigger_hallway_event(game):
@@ -172,125 +198,235 @@ def _static_events(game):
     ]
 
 
-def build_job_event(game):
-    """Build the single job-category event for the player's current role."""
-    job = game.player_data["job"]
-    if job == "Head of Personnel":
-        if game.player_data.get("access_request"):
-            return None
-        crew = game.station_crew
-        candidates = [npc for npc in crew
-                      if npc.get("name") and not npc.get("in_jail") and npc.get("job") != "Captain"]
-        if not candidates:
-            return None
-        npc = random.choice(candidates)
-        requested_job = random.choice(REQUESTABLE_JOBS)
-        requester = npc.get("name", "A crew member")
-        desc = (
-            f"{requester} ({npc.get('job', 'Crew')}) has submitted an access request "
-            f"to become {requested_job}. Review it at the HoP Access Control console."
+def _job_event(title, desc, effect):
+    return {"type": "job", "title": title, "desc": desc, "effect": effect}
+
+
+def _room_errand(giver, room, kind, label, reward, item=None):
+    """A deliver or help errand, with its Station Status summary."""
+    room_name = SPECIAL_ROOM_DOORS[room]["room_name"]
+    if kind == "deliver":
+        summary = f"Bring {label} to the {giver} in the {room_name} ({reward} cr)"
+    else:
+        summary = f"Help the {giver} {label} in the {room_name} ({reward} cr)"
+    return {"kind": kind, "giver": giver, "room": room, "item": item, "label": label, "reward": reward,
+            "summary": summary}
+
+
+def _random_produce():
+    """(item_id, 'a tomato') for a random piece of food produce."""
+    produce_id = random.choice(list(PRODUCE))
+    return produce_id, with_article(PRODUCE[produce_id]["name"].lower())
+
+
+def _available_crew(game):
+    return [npc for npc in game.station_crew if npc.get("name") and not npc.get("in_jail")]
+
+
+def _hop_event(game):
+    if game.player_data.get("access_request"):
+        return None
+    candidates = [npc for npc in _available_crew(game) if npc.get("job") != "Captain"]
+    if not candidates:
+        return None
+    npc = random.choice(candidates)
+    requested_job = random.choice(REQUESTABLE_JOBS)
+    requester = npc.get("name", "A crew member")
+    desc = (
+        f"{requester} ({npc.get('job', 'Crew')}) has submitted an access request "
+        f"to become {requested_job}. Review it at the HoP Access Control console."
+    )
+
+    def effect():
+        game.player_data["access_request"] = {
+            "requested_job": requested_job,
+            "requester_name": requester,
+        }
+        game.add_note(
+            f"Access request: {requester} requested assignment as {requested_job}."
         )
 
-        def effect():
-            game.player_data["access_request"] = {
-                "requested_job": requested_job,
-                "requester_name": requester,
-            }
-            game.add_note(
-                f"Access request: {requester} requested assignment as {requested_job}."
-            )
+    return _job_event("Access Request", desc, effect)
 
-        return {
-            "type": "job",
-            "title": "Access Request",
-            "desc": desc,
-            "effect": effect,
-        }
 
-    if job == "Staff Assistant":
-        request = random.choice(STAFF_ASSISTANT_REQUESTS)
-        desc = f"Job request: {request}"
+def _staff_assistant_event(game):
+    offered = [errand for errand in STAFF_ASSISTANT_ERRANDS if any_npc_for_job(game.station_crew, errand["giver"])]
+    if not offered:
+        return None
+    request = random.choice(offered)
+    reward = random.randint(ERRAND_MIN_REWARD, ERRAND_MAX_REWARD)
+    room_name = SPECIAL_ROOM_DOORS[request["room"]]["room_name"]
+    if request["kind"] == "deliver":
+        item = request.get("item")
+        if item:
+            label = with_article(get_item_definition(item)["name"].lower())
+        else:
+            item, label = _random_produce()
+        errand = _room_errand(request["giver"], request["room"], "deliver", label, reward, item)
+        desc = f"Job request: {request['request']} Bring {label} to the {room_name} for {reward} credits."
+    else:
+        errand = _room_errand(request["giver"], request["room"], "help", request["label"], reward)
+        desc = f"Job request: {request['request']} Report to the {room_name} for {reward} credits."
 
-        def effect():
-            game.add_note(desc)
+    def effect():
+        game.player_data["errand"] = errand
+        game.add_note(desc)
 
-        return {
-            "type": "job",
-            "title": "Job Request",
-            "desc": desc,
-            "effect": effect,
-        }
+    return _job_event("Job Request", desc, effect)
 
-    if job == "Engineer":
+
+def _engineer_event(game):
+    power = game.player_data["station_power"]
+    working = [key for key in FAULTABLE_SYSTEMS if key not in power["faults"]]
+    if not working or random.choice(("solar", "fault")) == "solar":
         desc = (
             "The solar panels have shut down unexpectedly. "
             "They must be restarted from the Engineering Panel."
         )
 
         def effect():
-            power = game.player_data["station_power"]
             power["solar_charging"] = False
             game.add_note("Solar arrays went offline and need to be restarted.")
 
-        return {
-            "type": "job",
-            "title": "Solar Panels Offline",
-            "desc": desc,
-            "effect": effect,
-        }
+        return _job_event("Solar Panels Offline", desc, effect)
 
-    if job == "Botanist":
-        crop = random.choice(BOTANY_SEED_IDS).removesuffix("_seeds")
-        article = "an" if crop[0] in "aeiou" else "a"
-        desc = f"The Bartender needs {article} {crop} from the botany lab."
+    system_key = random.choice(working)
+    name = system_name(system_key)
+    desc = (
+        f"The {name} has faulted and shut down. Repair it from the Engineering Panel "
+        "with Basic Tools or a Repair Tool."
+    )
+
+    def effect():
+        fault_system(power, system_key)
+        game.add_note(f"The {name} faulted and needs repairing.")
+
+    return _job_event("System Fault", desc, effect)
+
+
+def _botanist_event(game):
+    if any_npc_for_job(game.station_crew, "Bartender") is None:
+        return None
+    produce_id, label = _random_produce()
+    reward = random.randint(CROP_REQUEST_MIN_REWARD, CROP_REQUEST_MAX_REWARD)
+    desc = f"The Bartender needs {label} from the botany lab. Deliver it to the Bar for {reward} credits."
+
+    def effect():
+        game.player_data["errand"] = _room_errand("Bartender", BAR_KEY, "deliver", label, reward, produce_id)
+        game.add_note(f"Bartender requested {label} from botany for {reward} credits.")
+
+    return _job_event("Crop Request", desc, effect)
+
+
+def _bartender_event(game):
+    patrons = _available_crew(game)
+    if not patrons:
+        return None
+    patron = random.choice(patrons)["name"]
+    drink = random.choice(list(MIXED_DRINKS))
+    price = MIXED_DRINKS[drink]["price"]
+    desc = f"{patron} orders {with_article(drink)}. Mix one and serve it from the Bartender Station for {price} credits."
+
+    def effect():
+        game.player_data["errand"] = {
+            "kind": "serve", "room": BAR_KEY, "item": drink, "patron": patron, "reward": price,
+            "summary": f"Serve {with_article(drink)} to {patron} ({price} cr)",
+        }
+        game.add_note(f"{patron} ordered {with_article(drink)} for {price} credits.")
+
+    return _job_event("Drink Order", desc, effect)
+
+
+def _doctor_event(game):
+    patients = _available_crew(game)
+    if not patients:
+        return None
+    patient = random.choice(patients)
+    name = patient["name"]
+    limb = random.choice(LIMBS)
+    damage = random.randint(PATIENT_MIN_DAMAGE, PATIENT_MAX_DAMAGE)
+    desc = (
+        f"{name} ({patient.get('job', 'Crew')}) hurt their {limb_label(limb).lower()} in an accident. "
+        "Treat them from Crew Vitals at the MedBay Station."
+    )
+
+    def effect():
+        change_limb(patient, limb, -damage)
+        game.player_data["errand"] = {
+            "kind": "treat", "room": MEDBAY_KEY, "patient": name, "summary": f"Treat {name} from Crew Vitals",
+        }
+        game.add_note(f"{name} was hurt and needs treatment.")
+
+    return _job_event("Patient", desc, effect)
+
+
+def _security_event(game):
+    suspects = [npc for npc in find_hall_passersby(game.player_data, game.station_crew)
+                if npc.get("job") not in LAW_ABIDING_JOBS and not npc.get("warrant")]
+    if not suspects:
+        desc = "You witness a crime! You do not catch who it is."
 
         def effect():
-            game.add_note(f"Bartender requested {article} {crop} from botany.")
+            game.add_note("Witnessed a crime; perpetrator unidentified.")
 
-        return {
-            "type": "job",
-            "title": "Crop Request",
-            "desc": desc,
-            "effect": effect,
-        }
+        return _job_event("Witness a Crime", desc, effect)
 
-    if job == "Security Guard":
-        crew = game.station_crew
-        passersby = find_hall_passersby(game.player_data, crew)
-        if passersby:
-            culprit = random.choice(passersby)
-            name = culprit.get("name", "A crew member")
-            desc = f"You witness a crime! {name} is involved."
-            note = f"Witnessed a crime involving {name}."
-        else:
-            desc = "You witness a crime! You do not catch who it is."
-            note = "Witnessed a crime; perpetrator unidentified."
+    culprit = random.choice(suspects)
+    name = culprit.get("name", "A crew member")
+    charge = random.choice(PETTY_CRIMES)
+    desc = f"You witness a crime! {name} is involved. A warrant is out for {charge.lower()}."
 
-        def effect():
-            game.add_note(note)
+    def effect():
+        set_warrant(culprit, charge)
+        game.add_note(f"Witnessed {name} committing {charge.lower()}. A warrant has been issued.")
 
-        return {
-            "type": "job",
-            "title": "Witness a Crime",
-            "desc": desc,
-            "effect": effect,
-        }
+    return _job_event("Witness a Crime", desc, effect)
 
-    if job == "Captain":
-        request = random.choice(CAPTAIN_REQUESTS)
-        desc = f"Command request: {request}"
 
-        def effect():
-            game.add_note(desc)
+def _captain_event(game):
+    suspects = [npc for npc in _available_crew(game)
+                if npc.get("job") not in LAW_ABIDING_JOBS and not npc.get("warrant")]
+    requests = [key for key in CAPTAIN_REQUESTS if key != "warrant" or suspects]
+    request = random.choice(requests)
+    suspect = random.choice(suspects)["name"] if request == "warrant" else None
+    text = CAPTAIN_REQUESTS[request].format(suspect=suspect)
+    desc = f"Command request: {text}"
 
-        return {
-            "type": "job",
-            "title": "Command Request",
-            "desc": desc,
-            "effect": effect,
-        }
+    def effect():
+        game.add_note(desc)
+        game.ask(
+            "Command Request",
+            f"{text}\n\nApprove this request?",
+            [
+                ("Approve", "approve_command_request", {"request": request, "text": text, "suspect": suspect}),
+                ("Deny", "deny_command_request", {"text": text}),
+            ],
+        )
 
-    return None
+    return _job_event("Command Request", desc, effect)
+
+
+JOB_EVENT_BUILDERS = {
+    "Head of Personnel": _hop_event,
+    "Staff Assistant": _staff_assistant_event,
+    "Engineer": _engineer_event,
+    "Botanist": _botanist_event,
+    "Bartender": _bartender_event,
+    "Doctor": _doctor_event,
+    "Security Guard": _security_event,
+    "Captain": _captain_event,
+}
+
+# These jobs' events give an errand, so none rolls while one is waiting.
+ERRAND_JOBS = frozenset({"Staff Assistant", "Botanist", "Bartender", "Doctor"})
+
+
+def build_job_event(game):
+    """Build the single job-category event for the player's current role, or None."""
+    job = game.player_data["job"]
+    if job in ERRAND_JOBS and pending_errand(game.player_data):
+        return None
+    return JOB_EVENT_BUILDERS[job](game)
 
 
 def _events_by_category(game):

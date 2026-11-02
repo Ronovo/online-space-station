@@ -1,0 +1,41 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>For visitors</h2>
+<p><b>Talk to Ship Leadership</b> shows whoever leads the station:</p>
+<ul>
+  <li><b>Talk to Captain</b>: the Captain is too busy for chats.</li>
+  <li><b>Talk to HoP</b>, while the Head of Personnel is on duty:
+    <ul>
+      <li><b>Access Control</b>: a public terminal where you request a change to another job.</li>
+      <li><b>Talk to HoP</b>: the HoP looks at your pending request. It's a coin flip whether they approve it, and you
+        change jobs on the spot if they do.</li>
+    </ul>
+  </li>
+</ul>
+
+<h2>The Captain's Station</h2>
+<p>Only the Captain can work it.</p>
+<ul>
+  <li><b>Station Status</b>: the full station briefing. See {{ w.link("Station Status") }}.</li>
+  <li><b>Security Alerts</b>: who is wanted and still at large.</li>
+  <li><b>Crew Manifest</b>: the crew by department.</li>
+</ul>
+
+<h2>The HoP's Station</h2>
+<p>The Head of Personnel and the Captain can work it.</p>
+<ul>
+  <li><b>Crew Manifest</b>: the crew by department.</li>
+  <li><b>Job Assignments</b>: give any crew member a new job, and they move to that job's post. Only the Captain can
+    make someone Captain or move the current Captain, and the Captain is asked first before giving up the role with no
+    one to take over.</li>
+  <li><b>Access Control</b>: approve or deny the pending job request, whether it's yours or one a crew member sent in.</li>
+</ul>
+<p>Giving someone the Engineer job switches the solar array on.</p>
+
+<h2>Requests</h2>
+<p>
+  The Head of Personnel gets job requests from the crew, and the Captain gets command requests to approve or deny. See
+  {{ w.link("Head of Personnel") }} and {{ w.link("Captain") }}.
+</p>
+{% endblock %}

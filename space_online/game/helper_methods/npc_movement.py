@@ -14,6 +14,7 @@ from collections import deque
 
 from space_online.game.maps import donut
 from space_online.game.helper_methods.game_clock import get_elapsed_seconds
+from space_online.game.helper_methods.health_bands import change_limb
 
 # Job -> the donut room key that job's NPC is posted at.
 JOB_POST_KEY = {
@@ -35,6 +36,7 @@ NPC_AUTO_RETURN_CHANCE = 0.15
 STAFF_ROOM_VISIT_CHANCE = 0.25
 ROOM_VISIT_TICKS = 2
 NPC_EVENT_CHANCE = 0.15
+NPC_CRIME_CHANCE = 0.003
 
 # Off-duty posted NPC three-way weights (sum to 1.0).
 GOAL_WEIGHT_RETURN = NPC_AUTO_RETURN_CHANCE
@@ -291,20 +293,28 @@ def _apply_silent_npc_event(npc):
 
     outcome = random.choice(["minor_injury", "minor_heal", "nothing"])
     if outcome == "minor_injury":
-        limb = random.choice(list(limbs.keys()))
-        damage = random.randint(2, 8)
-        limbs[limb] = max(0, limbs[limb] - damage)
+        change_limb(npc, random.choice(list(limbs.keys())), -random.randint(2, 8))
     elif outcome == "minor_heal":
         injured = [limb for limb, health in limbs.items() if health < 100]
         if injured:
-            limb = random.choice(injured)
-            heal = random.randint(2, 8)
-            limbs[limb] = min(100, limbs[limb] + heal)
+            change_limb(npc, random.choice(injured), random.randint(2, 8))
+
+
+def _commit_petty_crime(npc):
+    """Give a wandering NPC a warrant for a petty crime, unless they uphold the law or are already wanted."""
+    # jail imports this module, so it is imported here rather than at the top.
+    from space_online.game.helper_methods.jail import LAW_ABIDING_JOBS, PETTY_CRIMES, set_warrant
+
+    if npc.get("job") in LAW_ABIDING_JOBS or npc.get("warrant"):
+        return
+    set_warrant(npc, random.choice(PETTY_CRIMES))
 
 
 def _maybe_trigger_silent_event(npc):
     if random.random() < NPC_EVENT_CHANCE:
         _apply_silent_npc_event(npc)
+    if random.random() < NPC_CRIME_CHANCE:
+        _commit_petty_crime(npc)
 
 
 def _enter_room(npc, room_key, game):

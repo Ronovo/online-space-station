@@ -1,22 +1,29 @@
+import time
+
 import pytest
 
-from helpers import new_game
+from helpers import new_game, reports
 from space_online.game.maps.donut import BOTANY_KEY, location_from_key
 from space_online.game.objects.botany_items import (
+    BOTANIST_STAND_PRICES,
+    BOTANY_VEND_CATALOG,
     GROWTH_CLASS_SECONDS,
     GROWTH_STAGES,
     MIN_STAGE_SECONDS,
     MIRACLE_GROW_SPEED_BONUS,
     PLENTIFUL_HARVEST_YIELD_MULTIPLIER,
+    VEND_RESTOCK_SECONDS,
     compute_growth_stage,
     effective_stage_seconds,
     empty_planter,
     growth_seconds_to_next_stage,
     growth_stage_label,
+    new_botany,
     refresh_planter_growth,
+    restock_vending,
 )
 from space_online.game.objects.items import get_item_definition
-from space_online.game.special_rooms.botany import clear_planter
+from space_online.game.special_rooms.botany import announce_planter_changes, clear_planter
 
 CROP = GROWTH_CLASS_SECONDS["crop"]
 
@@ -123,8 +130,6 @@ def test_empty_and_unplanted_planters_do_not_grow():
 def test_visitors_can_look_at_the_plants_but_not_tend_them():
     game = in_botany()
     assert buttons(game) == [("View Plants", "room.view_plants"), ("Talk to Botanist", "room.talk_to_botanist")]
-    game.perform("room.talk_to_botanist", {})
-    assert last_message(game) == ("Botanist", "The botanist continues tending to the plants without looking up.")
     game.perform("room.view_plants", {})
     assert list(panel(game)["ctx"]["rows"]) == [0, 1, 2, 3]
     game.perform("panel.choose_row", {"row": 9})
@@ -301,17 +306,171 @@ def test_the_visitor_view_ignores_hands():
     assert not planter(game)["occupied"]
 
 
-def test_the_vending_machine():
-    game = in_botany("Civilian", "Botanist")
+def vending(game):
     game.ui["room_mode"] = "botany_station"
     game.perform("room.access_botany_vending", {})
+
+
+def vended(game, item_id):
+    return next(item for item in panel(game)["ctx"]["available"] if item["id"] == item_id)
+
+
+def test_the_vending_machine_lists_and_filters_what_it_sells():
+    game = in_botany("Civilian", "Botanist")
+    vending(game)
     ctx = panel(game)["ctx"]
-    assert (ctx["filter"], len(ctx["available"]), ctx["owned"]) == ("all", 11, [])
+    assert (ctx["filter"], len(ctx["available"]), ctx["owned"], ctx["credits"]) == ("all", 12, [], 3000)
+    assert vended(game, "trowel") == {"id": "trowel", "name": "Trowel", "price": 30, "stock": 3}
     game.perform("panel.filter", {"kind": "tool"})
     assert [item["name"] for item in panel(game)["ctx"]["available"]] == ["Watering Can", "Trowel", "Chainsaw"]
     game.perform("panel.filter", {"kind": "weapons"})
     assert panel(game)["ctx"]["filter"] == "tool"
+
+
+def test_buying_from_the_vending_machine_costs_credits_and_stock():
+    game = in_botany("Civilian", "Botanist")
+    vending(game)
     for item_id in ("trowel", "trowel", "medkit"):
-        game.perform("panel.get", {"item_id": item_id})
+        game.perform("panel.buy", {"item_id": item_id})
     assert panel(game)["ctx"]["owned"] == ["Trowel x 2"]
-    assert notes(game) == ["Acquired Trowel from the botany vending machine."] * 2
+    assert (game.player_data["credits"], vended(game, "trowel")["stock"]) == (2940, 1)
+    assert notes(game) == ["Bought Trowel from the botany vending machine for 30 credits."] * 2
+
+
+def test_an_empty_slot_says_when_it_restocks():
+    game = in_botany("Civilian", "Botanist")
+    vending(game)
+    for _ in range(4):
+        game.perform("panel.buy", {"item_id": "chainsaw"})
+    assert last_message(game) == ("Out of Stock", "The machine is out of Chainsaw. It restocks one every 5 minutes.")
+    assert (game.player_data["credits"], vended(game, "chainsaw")["stock"]) == (2700, 0)
+    clock(game, VEND_RESTOCK_SECONDS)
+    assert vended(game, "chainsaw")["stock"] == 1
+
+
+def test_the_vending_machine_needs_the_credits():
+    game = in_botany("Civilian", "Botanist")
+    vending(game)
+    game.player_data["credits"] = 100
+    game.perform("panel.buy", {"item_id": "chainsaw"})
+    assert last_message(game) == ("Insufficient Credits", "You don't have enough credits to buy Chainsaw.")
+    assert (game.player_data["credits"], vended(game, "chainsaw")["stock"], game.player_data["inventory"]) == (100, 2, [])
+
+
+def test_restocking_adds_one_of_each_per_interval_up_to_the_most_it_holds():
+    botany = new_botany()
+    botany["vending_stock"].update(trowel=0, chainsaw=0, tomato_seeds=9)
+    assert restock_vending(botany, VEND_RESTOCK_SECONDS - 1)["trowel"] == 0
+    stock = restock_vending(botany, 2 * VEND_RESTOCK_SECONDS + 10)
+    assert (stock["trowel"], stock["chainsaw"], stock["tomato_seeds"]) == (2, 2, 10)
+    assert botany["vending_restocked_at_seconds"] == 2 * VEND_RESTOCK_SECONDS
+    assert restock_vending(botany, 3 * VEND_RESTOCK_SECONDS - 1)["trowel"] == 2
+    assert restock_vending(botany, 3 * VEND_RESTOCK_SECONDS)["trowel"] == BOTANY_VEND_CATALOG["trowel"][1]
+
+
+def test_every_seed_grows_a_real_item_and_every_vended_item_exists():
+    for item_id in BOTANY_VEND_CATALOG:
+        item = get_item_definition(item_id)
+        produces = item["attributes"].get("produces")
+        assert produces is None or get_item_definition(produces) is not None
+    assert get_item_definition("aloe_seeds")["attributes"]["produces"] == "aloe"
+
+
+def test_miracle_grow_speeds_up_only_the_time_still_to_come():
+    game = in_botany("Civilian", "Botanist")
+    planter(game).update(planted(growth_stage=2))
+    clock(game, 2 * CROP - 10)
+    row(game)
+    hold(game, "miracle_grow")
+    use(game)
+    card = panel(game)["ctx"]["cards"][0]
+    assert planter(game)["dead"] is False
+    assert (card["stage"], card["time"]) == ("Stage: Sprouting (2/5) - needs water", "Next stage in 9s")
+
+
+def test_supplies_that_would_do_nothing_stay_in_your_hand():
+    game = in_botany("Civilian", "Botanist")
+    planter(game).update(planted(watered=True))
+    planter(game, 1).update(planted(growth_stage=GROWTH_STAGES, planted_at_seconds=-10 * CROP))
+    row(game)
+    for item_id, index, message in [
+        ("watering_can", 0, ("No Water Needed", "This plant doesn't need water right now.")),
+        ("watering_can", 1, ("No Water Needed", "This plant doesn't need water right now.")),
+        ("miracle_grow", 1, ("Fully Grown", "This plant is already fully grown.")),
+    ]:
+        hold(game, item_id)
+        use(game, index=index)
+        assert last_message(game) == message
+        assert game.player_data["hands"]["left"]["id"] == item_id
+    for item_id, name in (("miracle_grow", "Miracle Grow"), ("plentiful_harvest", "Plentiful Harvest")):
+        hold(game, item_id)
+        use(game)
+        assert game.player_data["hands"]["left"] is None
+        hold(game, item_id)
+        use(game)
+        assert last_message(game) == ("Already Applied", f"This plant already has {name}.")
+        assert game.player_data["hands"]["left"]["id"] == item_id
+
+
+def test_a_plant_whose_stage_came_due_unwatered_cannot_be_saved_by_watering_late():
+    game = in_botany("Civilian", "Botanist")
+    planter(game).update(planted())
+    clock(game, CROP)
+    row(game)
+    hold(game, "watering_can")
+    use(game)
+    assert last_message(game) == ("Plant Dead", "This plant has died. It needs to be cleared with a Trowel or Chainsaw.")
+    assert planter(game)["watered"] is False
+
+
+def test_deaths_are_reported_and_ripe_plants_noted_once_each():
+    game = in_botany("Civilian", "Botanist")
+    planter(game, 0).update(planted())
+    planter(game, 1).update(planted(watered=True, growth_stage=GROWTH_STAGES - 1))
+    planter(game, 2).update(planted())
+    planter(game, 3).update(planted(planted_at_seconds=10 * CROP - 1))
+    clock(game, 10 * CROP)
+    refresh_planter_growth(planter(game, 2), 10 * CROP)
+    announce_planter_changes(game)
+    announce_planter_changes(game)
+    assert [message[1:] for message in game._messages] == [
+        ("Plant Died", "The Potato in planter 1 died for lack of water.", "warning"),
+        ("Plant Died", "The Potato in planter 3 died for lack of water.", "warning"),
+    ]
+    assert notes(game) == ["The Potato in planter 1 died for lack of water.", "The Potato in planter 2 is ready to harvest.",
+                           "The Potato in planter 3 died for lack of water."]
+
+
+def test_the_master_clock_announces_planter_changes():
+    game = in_botany("Civilian", "Botanist")
+    planter(game).update(planted())
+    game.player_data["game_clock"].update(elapsed_seconds=CROP, last_real_time=time.time() - 2)
+    game.tick()
+    assert "Plant Died" in reports(game)
+
+
+def test_the_botanist_sells_produce():
+    game = in_botany()
+    credits = game.player_data["credits"]
+    game.perform("room.talk_to_botanist", {})
+    ctx = panel(game)["ctx"]
+    assert ctx["credits"] == credits
+    assert [(item["name"], item["price"]) for item in ctx["produce"]] == [
+        ("Potato", 15), ("Wheat", 15), ("Carrot", 15), ("Tomato", 20), ("Apple", 30), ("Aloe", 40)]
+    for item_id in ("tomato", "medkit"):
+        game.perform("panel.buy", {"item_id": item_id})
+    assert game.player_data["credits"] == credits - BOTANIST_STAND_PRICES["tomato"]
+    assert [item["id"] for item in game.player_data["inventory"]] == ["tomato"]
+    assert notes(game) == ["Bought Tomato from the Botanist for 20 credits."]
+    game.player_data["credits"] = 5
+    game.perform("panel.buy", {"item_id": "aloe"})
+    assert last_message(game) == ("Insufficient Credits", "You don't have enough credits to buy Aloe.")
+
+
+def test_an_absent_botanist_sells_nothing():
+    game = in_botany()
+    botanist = next(npc for npc in game.station_crew if npc["job"] == "Botanist")
+    botanist["on_duty"] = False
+    assert ("Talk to Botanist", "room.talk_to_botanist") not in buttons(game)
+    game.perform("room.talk_to_botanist", {})
+    assert game.ui["panels"] == []

@@ -15,9 +15,11 @@ from space_online.game.helper_methods.jail import (
     offer_player_arrest_choice,
     player_jail_text,
 )
+from space_online.game.helper_methods.errands import ROOM_ERRAND_KINDS, finish_errand, pending_errand
 from space_online.game.helper_methods.game_clock import get_elapsed_seconds
 from space_online.game.helper_methods.ui_panels import register_panel
 from space_online.game.maps.donut import SECURITY_KEY
+from space_online.game.objects.items import get_item_definition, remove_one_from_inventory
 
 PLAYER_CREW_INDEX = -1
 
@@ -157,15 +159,29 @@ class SpecialRoomBase:
     def buttons(self):
         mode = self.game.ui.get("room_mode", "menu")
         if mode == "options":
-            return self.room_options()
+            return self.options()
         if mode != "menu":
             widgets = self.mode_buttons(mode)
             if widgets is not None:
                 return widgets
         return self.station_menu()
 
+    def options(self):
+        """Room options, led by the button for an errand that is done here."""
+        return self.errand_widgets() + self.room_options()
+
     def room_options(self):  # pragma: no cover - every room overrides this
         return []
+
+    def errand_widgets(self):
+        errand = pending_errand(self.player_data)
+        if not errand or errand["kind"] not in ROOM_ERRAND_KINDS or errand["room"] != self.DOOR_KEY:
+            return []
+        if available_npc(self.game, errand["giver"]) is None:
+            return []
+        if errand["kind"] == "deliver":
+            return [button(f"Deliver {get_item_definition(errand['item'])['name']}", "room.complete_errand")]
+        return [button("Help Out", "room.complete_errand")]
 
     def mode_buttons(self, mode):  # pragma: no cover - every room overrides this
         """Widgets for a room-specific menu mode, or None if mode is unknown."""
@@ -174,7 +190,7 @@ class SpecialRoomBase:
     def station_menu(self):
         """Authorized station menu, or the regular room options."""
         if not self.can_control():
-            return self.room_options()
+            return self.options()
         widgets = [
             button(entry["label"], "room.open_station", mode=entry["mode"])
             for entry in self.available_stations()
@@ -229,6 +245,26 @@ class SpecialRoomBase:
         if success:
             # Security Guard / Captain players scan anyone they call back for warrants.
             offer_player_arrest_choice(self.game, away_npc, place="call")
+
+    @room_action
+    def complete_errand(self):
+        """Finish a deliver or help errand for the giver in this room."""
+        if not self.errand_widgets():
+            return
+        errand = self.player_data["errand"]
+        giver, label, reward = errand["giver"], errand["label"], errand["reward"]
+        if errand["kind"] == "help":
+            finish_errand(self.game, f"Helped the {giver} {label} for {reward} credits.",
+                          f"You {label}. The {giver} pays you {reward} credits.", reward)
+            return
+        inventory = self.player_data["inventory"]
+        index = next((i for i, item in enumerate(inventory) if item.get("id") == errand["item"]), None)
+        if index is None:
+            self.game.alert("Nothing to Deliver", f"You don't have {label} to deliver.")
+            return
+        remove_one_from_inventory(self.player_data, index)
+        finish_errand(self.game, f"Delivered {label} to the {giver} for {reward} credits.",
+                      f"The {giver} takes {label} and pays you {reward} credits.", reward)
 
     @room_action
     def exit(self):

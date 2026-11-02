@@ -68,13 +68,13 @@ JOBS = {
         "department": "Administration",
         "subdepartment": "HoP",
         "credits": 9000,
-        "description": "The Head of Personnel (HoP) is the second-in-command of the station. They manage crew assignments, access permissions, and administrative matters. Starting with 9000 credits and access to the HoP Station and Bar Station.",
+        "description": "The Head of Personnel (HoP) is the second-in-command of the station. They manage crew assignments, access permissions, and administrative matters. Starting with 9000 credits and access to the HoP Station, MedBay, Engineering, the Bar and the Botany Lab.",
     },
     "Botanist": {
         "department": "Civilian",
         "subdepartment": "Botany",
         "credits": 3000,
-        "description": "Botanists cultivate and maintain the station's plant life. They grow food, medicinal herbs, and decorative plants in the Botany Lab. Starting with 3000 credits and access to the Botany Station.",
+        "description": "Botanists cultivate and maintain the station's plant life. They grow food and medicinal herbs in the Botany Lab. Starting with 3000 credits and access to the Botany Station.",
     },
 }
 

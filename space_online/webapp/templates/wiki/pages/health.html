@@ -1,0 +1,40 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>Limbs and damage</h2>
+<ul>
+  <li>You have six limbs: head, chest, both arms and both legs. Each runs from 100% (unhurt) down to 0%. Above 75% is
+    Healthy, above 40% is Injured, and anything lower is Critical.</li>
+  <li>On top of that you can take burn, poison and oxygen damage, each from 0% up to 100%. Under 10% is Clear, under
+    30% Mild, under 60% Moderate, and Severe after that.</li>
+  <li>Hallway accidents, falls while drunk, and failing life support are the usual causes.</li>
+</ul>
+
+<h2>Getting treated</h2>
+<ul>
+  <li>In MedBay, <b>Request Health Check</b> is a free scan that shows what treatment would cost.</li>
+  <li><b>Talk to Doctor</b>, while a Doctor is on duty, heals everything for a price per point of damage:
+    {% for kind, multiplier in facts.cost_multipliers.items() %}{{ kind }} {{ multiplier }}{{ ", " if not loop.last }}{% endfor %}
+    credits. See {{ w.link("Medical") }}.</li>
+  <li>A Medkit or an Aloe heals a little on the spot. See {{ w.link("Items and Hands") }}.</li>
+</ul>
+
+<h2>Oxygen</h2>
+<p>
+  Oxygen damage comes from underpowered life support. While life support works, it wears off on its own below
+  {{ facts.oxygen.DOCTOR_REQUIRED_FLOOR }}%. At {{ facts.oxygen.DOCTOR_REQUIRED_FLOOR }}% or more, only a Doctor can
+  clear it. If it reaches {{ facts.oxygen.DEATH_THRESHOLD }}%, emergency systems revive you in your Quarters with every
+  limb at {{ facts.oxygen.POST_DEATH_LIMB_HEALTH }}% and {{ facts.oxygen.POST_DEATH_OXYGEN }}% oxygen damage. See
+  {{ w.link("Life Support") }}.
+</p>
+
+<h2>Alcohol</h2>
+<ul>
+  <li>Alcoholic drinks raise your alcohol level, shown on the Character Sheet. It wears off by
+    {{ facts.alcohol.ALCOHOL_DECAY_AMOUNT }}% every {{ facts.alcohol.ALCOHOL_DECAY_SECONDS // 60 }} minutes.</li>
+  <li>Above 5% you may stumble and fail to move. From 25% you may also fall and hurt a limb. The more you drink, the
+    likelier both get.</li>
+  <li>At {{ facts.alcohol.DOCTOR_SOBER_FLOOR }}% or more, a Doctor can sober you up as part of treatment, for 1 credit
+    per percent.</li>
+</ul>
+{% endblock %}

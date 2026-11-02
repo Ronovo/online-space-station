@@ -1,0 +1,13 @@
+{% import "game/_ui.html" as ui %}
+<h2>Produce Stand</h2>
+<p class="center">The botanist sells fresh produce from the lab.</p>
+<p class="center">Your credits: {{ p.credits }}</p>
+<div class="card-list" data-scroll-key="stand-produce">
+  {% for item in p.produce %}
+  <div class="item-card botany">
+    <span class="item-name">{{ item.name }} - {{ item.price }} credits</span>
+    {{ ui.btn("Buy", "panel.buy", {"item_id": item.id}, "btn-small") }}
+  </div>
+  {% endfor %}
+</div>
+<div class="button-row">{{ ui.close_btn() }}</div>

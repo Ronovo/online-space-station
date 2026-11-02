@@ -1,0 +1,26 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set e = facts.events %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You grow the station's food and medicine. At the Botany Station you buy seeds and supplies from the vending machine,
+  plant and water the planters, and harvest what grows. You can also lock and unlock the Botany Lab door. See
+  {{ w.link("Botany") }}.
+</p>
+
+<h2>Job events</h2>
+<p>
+  <b>Crop Request</b>: the Bartender asks for a piece of produce. Grow it, or buy it, and press <b>Deliver</b> at the Bar
+  while the Bartender is on duty, for {{ e.CROP_REQUEST_MIN_REWARD }}-{{ e.CROP_REQUEST_MAX_REWARD }} credits. See
+  {{ w.link("Errands and Job Events") }}.
+</p>
+
+<h2>Tips</h2>
+<ul>
+  <li>Water every plant before its stage ends. You're told when a plant dies, and Station Status counts the thirsty
+    ones.</li>
+  <li>Crops grow fastest, so they're the quickest way to fill a request.</li>
+  <li>Aloe soothes burns. Keep a leaf or two for hallway accidents.</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You run the station. You can work every station and lock or unlock every door. Your own Captain's Station on the
+  Bridge has the Station Status briefing, security alerts and the crew manifest. See {{ w.link("Station Status") }} and
+  {{ w.link("Bridge and Personnel") }}.
+</p>
+<ul>
+  <li>Like a Security Guard, you scan rooms for warrants and can arrest wanted crew. See {{ w.link("Security and Jail") }}.</li>
+  <li>Through Job Assignments you're the only one who can make someone Captain or move the current Captain.</li>
+</ul>
+
+<h2>Job events</h2>
+<p><b>Command Request</b>: a department asks for your approval. Approve or deny it:</p>
+<ul>
+  <li>Divert power to life support: life support goes to full power.</li>
+  <li>Lock down a sector: a department door is locked.</li>
+  <li>Switch to Power Saving mode: the station changes power mode.</li>
+  <li>A warrant for a suspect: a warrant goes out for that crew member.</li>
+</ul>
+<p>Denying a request changes nothing.</p>
+{% endblock %}

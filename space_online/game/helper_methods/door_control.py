@@ -44,10 +44,6 @@ def can_control_door(player_data, door_key):
     return player_data.get("subdepartment", "") in door.get("permission", frozenset())
 
 
-def is_door_locked(player_data, door_key):  # pragma: no cover - nothing calls this
-    return player_data.get("ship_map", {}).get(door_key, {}).get("locked", False)
-
-
 def toggle_door_lock(game, door_key):
     player_data = game.player_data
     ship_map = player_data.get("ship_map", {})

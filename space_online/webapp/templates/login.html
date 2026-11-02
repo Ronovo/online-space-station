@@ -19,6 +19,7 @@
   </form>
   <p class="muted">No account yet? <a href="{{ url_for('register') }}">Register</a></p>
   <p class="muted"><a href="{{ url_for('reset_password') }}">Forgot password?</a></p>
+  <p class="muted">New to the station? Read the <a href="{{ url_for('wiki.index') }}">Player Guide</a>.</p>
 </section>
 {% endblock %}
 {% block scripts %}

@@ -1,0 +1,25 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You staff the station. At the HoP's Station on the Bridge you see the crew manifest, assign crew to jobs, and
+  approve or deny job requests. See {{ w.link("Bridge and Personnel") }}.
+</p>
+<p>
+  You also have the keys to most departments: you can work the stations and doors of the Bridge, MedBay, Engineering,
+  the Bar and the Botany Lab.
+</p>
+
+<h2>Staffing up</h2>
+<p>
+  You start with only a Captain and Staff Assistants aboard. Use <b>Job Assignments</b> to give the Staff Assistants
+  department jobs, and they head to their new posts. You can't make anyone Captain or move the Captain.
+</p>
+
+<h2>Job events</h2>
+<p>
+  <b>Access Request</b>: a crew member asks to become another job. Review it at the HoP's Station
+  <b>Access Control</b>. A new request only comes in once the last one is settled.
+</p>
+{% endblock %}

@@ -1,0 +1,29 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<p>
+  Station Status is the Captain's briefing on the whole station, opened from the Captain's Station on the Bridge. See
+  {{ w.link("Bridge and Personnel") }}.
+</p>
+
+<h2>Overall condition</h2>
+<ul>
+  <li><b>NOMINAL</b>: nothing needs attention.</li>
+  <li><b>CAUTION</b>: something does, like a low battery, injured crew, a system fault, a locked room, wanted or
+    jailed crew, unpaid fines, a pending request or errand, or plants that need water or have died.</li>
+  <li><b>CRITICAL</b>: a critical battery or outage, an oxygen emergency, crew in critical condition, or an emergency
+    announcement.</li>
+</ul>
+
+<h2>Sections</h2>
+<ul>
+  <li><b>Alerts</b>: every current problem, critical ones in red.</li>
+  <li><b>Power and systems</b>: battery level, power mode, the solar array, and each system's status and level. See
+    {{ w.link("Power") }}.</li>
+  <li><b>Crew</b>: how many are aboard, on duty or away, healthy, injured or critical, and suffering from low oxygen.</li>
+  <li><b>Security</b>: whether security systems are online, and everyone wanted, jailed or fined. See
+    {{ w.link("Security and Jail") }}.</li>
+  <li><b>Facilities</b>: locked rooms, and the Botany planters in use, mature, needing water and dead. See
+    {{ w.link("Botany") }}.</li>
+</ul>
+{% endblock %}

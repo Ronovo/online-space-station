@@ -24,6 +24,17 @@ BRIBE_MIN_CREDITS = 5
 BRIBE_MAX_CREDITS = 50
 FINE_REFUSE_CHANCE = 0.15
 
+PETTY_CRIMES = ("Vandalism", "Petty theft", "Trespassing", "Brawling", "Smuggling contraband")
+
+# Jobs whose NPCs never commit crimes.
+LAW_ABIDING_JOBS = frozenset({"Security Guard", "Captain"})
+
+
+def set_warrant(member, reason):
+    member["warrant"] = True
+    member["warrant_reason"] = reason
+
+
 def can_player_arrest(player_data):
     """Whoever can work the Security door can scan warrants and offer Arrest / Let Go."""
     return can_control_door(player_data, donut.SECURITY_KEY)

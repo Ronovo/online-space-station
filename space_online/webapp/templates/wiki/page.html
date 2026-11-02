@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - Player Guide - Space Station Explorer{% endblock %}
+{% block content %}
+<div class="wiki">
+  <nav class="wiki-nav" aria-label="Player Guide pages">
+    <a class="wiki-nav-home" href="{{ url_for('wiki.index') }}">Player Guide</a>
+    {% for section, titles in sections %}
+    <p class="wiki-nav-section">{{ section }}</p>
+    <ul>
+      {% for page_title in titles %}
+      <li><a href="{{ wiki_url(page_title) }}"{% if page_title == title %} aria-current="page"{% endif %}>{{ page_title }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endfor %}
+  </nav>
+  <article class="wiki-page">
+    {% for section, titles in sections if title in titles %}
+    <p class="wiki-crumb"><a href="{{ url_for('wiki.index') }}">Player Guide</a> / {{ section }}</p>
+    {% endfor %}
+    <h1>{{ title }}</h1>
+    {% if job %}
+    <aside class="wiki-infobox">
+      <dl>
+        <dt>Department</dt><dd>{{ job.department }}</dd>
+        <dt>Starting credits</dt><dd>{{ job.credits }}</dd>
+        <dt>Stations</dt>
+        <dd>
+          {% if stations %}
+          <ul>{% for station in stations %}<li>{{ station }}</li>{% endfor %}</ul>
+          {% else %}None{% endif %}
+        </dd>
+      </dl>
+    </aside>
+    <p class="wiki-lead">{{ job.description }}</p>
+    {% endif %}
+    {% block page %}{% endblock %}
+  </article>
+</div>
+{% endblock %}

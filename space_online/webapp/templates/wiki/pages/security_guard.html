@@ -1,0 +1,24 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You keep order. At the Security Station you see the crew manifest, issue warrants and fines, and run the jail:
+  pardoning prisoners or adding time to their sentences. You can also lock and unlock the Security door. See
+  {{ w.link("Security and Jail") }}.
+</p>
+
+<h2>Arrests</h2>
+<ul>
+  <li>When you walk into a room, you scan it for warrants and collect any unpaid fines from the crew inside.</li>
+  <li>When you meet wanted crew in a room or the halls, or call one back to their post, you choose to
+    <b>Arrest</b> or <b>Let Go</b>. Some offer a bribe to be let go.</li>
+  <li>You collect unpaid fines from crew you pass in the halls. Anyone who can't or won't pay goes to jail.</li>
+</ul>
+
+<h2>Job events</h2>
+<p>
+  <b>Witness a Crime</b>: if a crew member is in the hall with you, a warrant goes out for them and you can arrest them.
+  Otherwise you don't catch who did it.
+</p>
+{% endblock %}

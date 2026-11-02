@@ -1,0 +1,28 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>Who's aboard</h2>
+<p>
+  The crew is made up around your job. Every department job other than yours gets a crew member posted at their room,
+  and a couple of Staff Assistants wander the halls. A Head of Personnel starts with only a Captain and Staff
+  Assistants, and fills the other jobs. See {{ w.link("Bridge and Personnel") }}.
+</p>
+
+<h2>On duty and away</h2>
+<ul>
+  <li>Posted crew sometimes leave their room. They wander the halls, visit another room for a while, then head back.</li>
+  <li>While someone is on duty, their room offers their service: the Bartender takes orders, the Doctor treats you,
+    and so on.</li>
+  <li>When they're away, the room shows a <b>Call</b> button. They answer about
+    {{ (facts.call_chance * 100)|round|int }}% of the time and head back to their post.</li>
+  <li>A jailed crew member can't be called. The room shows when they get out.</li>
+</ul>
+
+<h2>Crew life</h2>
+<ul>
+  <li>Wandering crew pick up small injuries and heal from them. A Doctor can treat them. See {{ w.link("Medical") }}.</li>
+  <li>Now and then someone commits a petty crime and a warrant goes out. Security Guards and Captains never do. See
+    {{ w.link("Security and Jail") }}.</li>
+  <li>The Crew Manifest at the Security and Bridge stations lists everyone by department.</li>
+</ul>
+{% endblock %}

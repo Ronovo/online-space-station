@@ -1,0 +1,31 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>For visitors</h2>
+<ul>
+  <li><b>Access Fabricator</b>: anyone can make items here, free.
+    {% for category, names in facts.fabricator.items() %}{{ category }}s: {{ names|join(", ") }}.{{ " " if not loop.last }}{% endfor %}</li>
+  <li><b>Talk to Engineer</b>, while the Engineer is on duty. They're usually too busy to chat.</li>
+</ul>
+
+<h2>The Engineering Station</h2>
+<p>
+  Engineers, the Head of Personnel and the Captain can work it. Its <b>Engineering Panel</b> runs the station's power:
+  battery status, the solar array switch, a level for each system, and the power modes. See {{ w.link("Power") }}.
+</p>
+
+<h2>System faults</h2>
+<ul>
+  <li>Equipment faults can knock out {{ facts.faultable|join(", ") }}. A faulted system shows FAULT on the panel and
+    in Station Status, and stays at 0 until it's repaired. Power modes skip it, and its level won't go back up.</li>
+  <li>To repair it, carry or hold Basic Tools or a Repair Tool and press <b>Repair</b> next to it on the panel. It
+    comes back at the current power mode's level.</li>
+  <li>Basic Tools start in your locker, and both can be made at the fabricator.</li>
+</ul>
+
+<h2>Solar outages</h2>
+<p>
+  As an Engineer, a hallway job event can shut the solar array down. Switch it back on from the Engineering Panel.
+  See {{ w.link("Engineer") }}.
+</p>
+{% endblock %}

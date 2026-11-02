@@ -1,0 +1,27 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>MedBay for visitors</h2>
+<ul>
+  <li><b>Request Health Check</b>: a free scan of your limbs, damage and alcohol, with what treatment would cost.</li>
+  <li><b>Talk to Doctor</b>, while the Doctor is on duty: they examine you and offer treatment. Paying heals every limb,
+    clears all burn, poison and oxygen damage, and sobers you up if you need it. It costs, per point of damage:
+    {% for kind, multiplier in facts.cost_multipliers.items() %}{{ kind }} {{ multiplier }}{{ ", " if not loop.last }}{% endfor %}
+    credits.</li>
+</ul>
+
+<h2>The MedBay Station</h2>
+<p>Doctors, the Head of Personnel and the Captain can work it.</p>
+<ul>
+  <li><b>Heal Injuries</b>: free, full treatment for yourself: every limb and every kind of damage.</li>
+  <li><b>Check Crew Vitals</b>: everyone's health at a glance, with limb and damage details. An injured crew member
+    has a <b>Treat</b> button. Treating them heals them completely, and they pay you the treatment cost from their own
+    credits, or what they have if they can't afford it all.</li>
+</ul>
+
+<h2>Patients</h2>
+<p>
+  As a Doctor, a hallway job event can tell you a crew member was hurt in an accident. Treat them from Crew Vitals to
+  finish the errand. See {{ w.link("Doctor") }} and {{ w.link("Errands and Job Events") }}.
+</p>
+{% endblock %}
