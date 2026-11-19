@@ -6,6 +6,27 @@
 {{ btn(label, "game.close_panel", cls=cls) }}
 {%- endmacro %}
 
+{% macro panel_header(title, close_label="Close", action="game.close_panel") -%}
+<div class="panel-header">
+  <h2>{{ title }}</h2>
+  <div class="panel-header-buttons">
+    {% if caller is defined %}{{ caller() }}{% endif %}
+    {{ btn(close_label, action, cls="btn-small") }}
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro floor(items) -%}
+{% if items %}
+<section class="floor">
+  <h2 class="floor-title">On the Floor Here</h2>
+  <div class="floor-items">
+    {% for item in items %}{{ btn("Pick Up " ~ item.label, "game.pick_up", {"index": item.index}, "btn-small") }}{% endfor %}
+  </div>
+</section>
+{% endif %}
+{%- endmacro %}
+
 {% macro row(label, action, args, selected=False, cls="") -%}
 <button type="button" class="list-row{% if selected %} selected{% endif %} {{ cls }}" data-action="{{ action }}" data-args='{{ args|tojson }}'>{{ label }}</button>
 {%- endmacro %}
@@ -26,7 +47,7 @@
 {%- endmacro %}
 
 {% macro feedback(fb) -%}
-<p class="feedback"{% if fb %} style="color: {{ fb.color }}"{% endif %}>{{ fb.text if fb else "" }}</p>
+{% if fb and fb.text %}<p class="feedback" style="color: {{ fb.color }}">{{ fb.text }}</p>{% endif %}
 {%- endmacro %}
 
 {% macro widgets(items) -%}
@@ -36,7 +57,7 @@
   {% elif w.style == "title" %}
     <h3 class="menu-title"{% if w.color %} style="color: {{ w.color }}"{% endif %}>{{ w.text }}</h3>
   {% else %}
-    <p class="menu-text{% if w.style == 'italic' %} italic{% endif %}"{% if w.color %} style="color: {{ w.color }}"{% endif %}>{{ w.text }}</p>
+    <p class="menu-text{% if w.style in ('italic', 'status') %} italic{% endif %}"{% if w.color %} style="color: {{ w.color }}"{% endif %}>{{ w.text }}</p>
   {% endif %}
 {% endfor %}
 {%- endmacro %}

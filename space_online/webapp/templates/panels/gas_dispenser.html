@@ -1,0 +1,34 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Gas Dispenser") }}
+<p class="center">Pure gas at room temperature. The dangerous gases come from a stock that has to last the shift.</p>
+<fieldset class="group">
+  <legend>Gas</legend>
+  <div class="toggle-row">
+    {% for gas in p.gases %}
+      {{ ui.btn(gas.label, "panel.pick_gas", {"name": gas.name}, "btn-toggle btn-small" ~ (" active" if p.gas == gas.name else "")) }}
+    {% endfor %}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>Into</legend>
+  <div class="toggle-row">
+    {% for row in p.canisters %}
+      {{ ui.btn(row.label, "panel.pick_canister", {"index": row.index}, "btn-toggle btn-small" ~ (" active" if p.canister == row.index else "")) }}
+    {% else %}
+      <p>There are no canisters on the rack.</p>
+    {% endfor %}
+  </div>
+  <div class="slider-row">
+    <label for="dispense-amount">Amount (mol)</label>
+    <input id="dispense-amount" type="range" min="0" max="{{ p.max_amount }}" value="{{ p.amount }}" data-action="panel.set_amount">
+    <output for="dispense-amount">{{ p.amount }}</output>
+  </div>
+  {% if p.before %}
+    <p>Now: {{ p.before }}</p>
+    <p>After: {{ p.after }}</p>
+  {% else %}
+    <p>Pick a canister to see its gauge.</p>
+  {% endif %}
+  <div class="button-row">{{ ui.btn("Dispense", "panel.dispense", cls="btn-primary") }}</div>
+</fieldset>
+{{ ui.feedback(p.feedback) }}

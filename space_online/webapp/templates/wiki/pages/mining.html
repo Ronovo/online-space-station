@@ -1,0 +1,73 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set m = facts.mining %}
+{% set k = facts.combat %}
+{% block page %}
+<p>The Mining Bay is off the Northeast Hallway. Its station is the locker room, where a miner gets ready to mine.</p>
+
+<h2>For visitors</h2>
+<ul>
+  <li><b>Buy Ore</b>, while the Miner is on duty: the ore counter sells common ore.</li>
+</ul>
+
+<h2>The Miner Station</h2>
+<p>Miners, the Head of Personnel and the Captain can work it. It opens on the locker room:</p>
+<ul>
+  <li><b>Take Mining Gear</b>: a Pickaxe and a Blast Shield from the lockers, if you don't already have them. Equip
+    them from Hands. See {{ w.link("Items and Hands") }}.</li>
+  <li><b>Magnet</b> and <b>Mine Rocks</b>: the easy way to mine, below.</li>
+  <li><b>Board the Shuttle</b>: the dangerous way, below.</li>
+</ul>
+<p>
+  Ore sells at the {{ w.link("Cargo") }} Bay's export counter, and what you sell goes up to the station stores for the
+  fabricator. See {{ w.link("Station Stores") }}.
+</p>
+
+<h2>The Magnet</h2>
+<ul>
+  <li>Switch the magnet on and it pulls in one rock every {{ m.MAGNET_SECONDS_PER_ROCK }} seconds of game time, up to
+    {{ m.MAGNET_MAX_ROCKS }}, while you get on with other things.</li>
+  <li><b>Mine Rocks</b> breaks up everything it has pulled in. You need a pickaxe, carried or held.</li>
+  <li>Each rock gives one common ore: Iron Ore, Copper Ore or Quartz.</li>
+</ul>
+
+<h2>The Shuttle</h2>
+<ul>
+  <li>The station moves over a new planet every {{ m.ORBIT_SECONDS // 60 }} minutes of game time. The shuttle takes you
+    down to whichever one is below. You need a pickaxe, and you won't be let aboard if you're badly hurt.</li>
+  <li><b>Search for Rocks</b>: each search takes {{ facts.mining_bay.SEARCH_SECONDS_RANGE[0] }}-{{
+    facts.mining_bay.SEARCH_SECONDS_RANGE[1] }} seconds of the shift and finds a vein of better ore, nothing, or a
+    monster. Now and then it turns up an alien artifact, which the {{ w.link("Research") }} Lab pays a finder's fee
+    for.</li>
+  <li>The shuttle's hold takes {{ facts.mining_bay.HOLD_CAPACITY }} ore a trip. Once it is full you can't search any
+    more; artifacts take no room.</li>
+  <li>You dig some ore out of every vein you find, but you don't know what it is: it sits in the hold as
+    unidentified ore. A Miner holding their {{ w.link("PDA") }} gets a <b>Scan the Vein</b> button, until the next
+    search. Scanning names the ore, and from then on you know every vein of it on sight for the rest of the shift.
+    There are {{ facts.surface_ores }} ores to identify, and the PDA's Ore Log keeps count.</li>
+  <li>Scanned or not, the station sorts and names the whole haul when the shuttle docks.</li>
+  <li><b>Return to the Station</b>: flies you back and unloads what you dug up. The shuttle is the only way back, and
+    it won't leave during a fight.</li>
+</ul>
+<table class="wiki-table">
+  <thead><tr><th>Planet</th><th>Ores</th><th>Monsters</th></tr></thead>
+  <tbody>
+    {% for planet in m.PLANETS %}
+    <tr>
+      <td>{{ planet.name }}</td>
+      <td>{% for ore in planet.ores %}{{ facts.item_name(ore) }}{{ ", " if not loop.last }}{% endfor %}</td>
+      <td>{{ planet.monsters|map(attribute="name")|join(", ") }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Combat</h2>
+<p>When a monster turns up, you fight it. There is no running away. The fight works like any other, as {{ w.link("Combat and Weapons") }} sets out.</p>
+<ul>
+  <li>A Blast Shield in your hands stops {{ m.MINING_ITEMS.blast_shield.attributes.block }}% of every hit.</li>
+  <li>Beating a monster turns up a piece of ore.</li>
+  <li>If your overall health falls below {{ k.DEFEAT_HEALTH }}%, the rescue drone flies you back to the Mining Bay,
+    and everything you dug up on that trip, artifacts included, is lost.</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,73 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set c = facts.career %}
+{% block page %}
+<p>
+  The lobby is where every round starts. Your account keeps one career, and you can play a single round between career
+  shifts without touching it. Every round, in every mode, ends with the crew shuttle. See
+  {{ w.link("Rounds and the Shuttle") }}.
+</p>
+
+<h2>The three modes</h2>
+<table class="wiki-table">
+  <thead><tr><th>Mode</th><th>Jobs</th><th>Antagonists</th><th>If you die</th><th>What you keep</th></tr></thead>
+  <tbody>
+    <tr><td>Career</td><td>What your career has unlocked</td><td>One to {{ facts.threats.MAX_THREATS }}</td>
+      <td>You pay to be revived, or the career ends</td><td>Credits and unlocks</td></tr>
+    <tr><td>Single round, Peaceful</td><td>Any</td><td>None</td><td>Nothing in it can kill you: run out of
+      health and you wake up in your Quarters. Accidents and low oxygen still hurt, and being left behind by the
+      shuttle still ends the round</td><td>Nothing</td></tr>
+    <tr><td>Single round, Antagonist</td><td>Any</td><td>One to {{ facts.threats.MAX_THREATS }}</td>
+      <td>The round is over</td><td>Nothing</td></tr>
+  </tbody>
+</table>
+<p>
+  A single round is a throwaway character. It starts with its job's own credits and is not paid a salary. You can
+  abandon one from the lobby; a career shift has to be seen through.
+</p>
+
+<h2>The career ladder</h2>
+<p>
+  A career starts as a {{ c.START_JOB }} with {{ facts.start_credits }} credits and no other job to its name. A job you
+  have unlocked is one you can start a shift in from then on.
+</p>
+<ul>
+  <li><b>End a shift holding a job and it is unlocked.</b> Ask the Head of Personnel for it at Access Control on the
+    Bridge. See {{ w.link("Bridge and Personnel") }}.</li>
+  <li>A shift that ends without a new job, while there are jobs left to unlock, lets you pick one from the shift
+    report or the lobby.</li>
+  <li>{{ c.HEAD_JOB }} unlocks once every other job is unlocked, whichever way you got them.</li>
+  <li>{{ c.TOP_JOB }} unlocks after a shift you started as {{ c.HEAD_JOB }}.</li>
+</ul>
+<table class="wiki-table">
+  <thead><tr><th>Job</th><th>Salary every {{ c.PAY_INTERVAL_SECONDS // 60 }} minutes</th></tr></thead>
+  <tbody>
+    {% for job, salary in facts.ladder %}
+    <tr><td>{{ w.link(job) }}</td><td>{{ salary }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>What carries over</h2>
+<ul>
+  <li>Your credits and your unlocked jobs. Shares are sold at the end of every shift and the money added to your
+    credits.</li>
+  <li>The files you wrote on your computer. See {{ w.link("PDA") }}.</li>
+  <li>Nothing else. Every shift you arrive on a fresh station, with a new crew, a new locker, empty hands and full
+    health.</li>
+  <li>The salary is paid for the job you hold when payday comes, so changing to a better-paid job mid-shift pays
+    better.</li>
+</ul>
+
+<h2>Dying in a career</h2>
+<ul>
+  <li>Dying ends the round on the spot. The round still counts: it unlocks the job you died in, or leaves you a
+    pick.</li>
+  <li>You are revived for {{ c.REVIVE_BASE_COST }} credits the first time, and {{ c.REVIVE_COST_STEP }} more each time
+    after that.</li>
+  <li>If you can't pay, the career is over, and you start a new one from the bottom.</li>
+  <li>You die by losing a fight to an antagonist, by running out of oxygen, in a Large transfer valve bomb blast, or by
+    being left behind when the shuttle leaves. See {{ w.link("Antagonists") }}, {{ w.link("Life Support") }} and
+    {{ w.link("Atmospherics") }}.</li>
+</ul>
+{% endblock %}

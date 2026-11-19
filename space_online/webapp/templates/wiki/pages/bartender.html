@@ -8,14 +8,18 @@
 </p>
 
 <h2>Job events</h2>
-<p>
-  <b>Drink Order</b>: a crew member orders a mixed drink. Mix it, then press <b>Serve</b> at the Bartender Station to
-  hand it over for the drink's menu price. See {{ w.link("Errands and Job Events") }}.
-</p>
+<ul>
+  <li><b>Drink Order</b>: a crew member orders a mixed drink. Mix it, then press <b>Serve</b> at the Bartender Station
+    to hand it over for the drink's menu price. See {{ w.link("Duties and Job Events") }}.</li>
+  <li><b>Window Request</b>: the Chef asks for a drink at the service window. Put it on the window when you can. It's
+    a favour, so it pays nothing. See {{ w.link("Kitchen") }}.</li>
+</ul>
 
 <h2>Tips</h2>
 <ul>
   <li>Keep a few mixed drinks in stock so you can serve orders straight away.</li>
   <li>Free drinks still count toward your alcohol level. See {{ w.link("Health") }}.</li>
+  <li>Up to {{ facts.duties.MAX_OPEN_DUTIES }} orders can wait at once, each with its own Serve button.</li>
+  <li>Your PDA reads what a mixed drink is mixed from. See {{ w.link("PDA") }}.</li>
 </ul>
 {% endblock %}

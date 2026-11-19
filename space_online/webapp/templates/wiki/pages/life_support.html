@@ -1,30 +1,86 @@
 {% extends "wiki/page.html" %}
 {% import "wiki/_macros.html" as w with context %}
 {% set o = facts.oxygen %}
+{% set a = facts.air %}
+{% set per_minute = o.BASE_DAMAGE_PER_TICK * 60 / o.OXYGEN_TICK_SECONDS %}
 {% block page %}
-<p>Life support is the power system that keeps oxygen flowing to the whole crew, you included.</p>
+<p>
+  Life support keeps the station's air fresh for the whole crew, you included. The station has one air, shared by every
+  room and hallway.
+</p>
 
-<h2>When it fails</h2>
+<h2>How the air works</h2>
 <ul>
-  <li>At life support level {{ o.DAMAGE_THRESHOLD_LEVEL }} or below, everyone aboard takes oxygen damage. The lower the
-    level, the faster it builds, up to twice as fast at 0.</li>
-  <li>Switching life support off sends a station-wide emergency announcement. Damage holds off for
-    {{ o.OXYGEN_DEPLETION_GRACE_SECONDS }} seconds, so there's time to turn it back on.</li>
+  <li>Everyone aboard breathes Oxygen into Carbon Dioxide, all the time.</li>
+  <li>Life support's scrubbers draw the stale air off, and its pump refills the air from the reservoir in
+    {{ w.link("Atmospherics") }}. Both run at the life support level set on the Engineering Panel: the higher the level,
+    the faster the air is turned over.</li>
+  <li>At level {{ (a.KEEPS_UP_LEVEL + 1)|int }} and above the air stays fresh for a full crew. At level
+    {{ a.KEEPS_UP_LEVEL|int }} and below the pump can't keep up: Oxygen sags and Carbon Dioxide builds until the air
+    starts to hurt, sooner and worse the lower the level.</li>
+  <li>With life support off nothing is pumped or scrubbed, and a full crew breathes the air down to where it hurts in
+    about {{ a.AIR_LASTS_SECONDS // 60 }} minutes. Switching it off sends a station-wide emergency announcement.</li>
+  <li>A hull breach vents the air to space and a fire burns its Oxygen. See {{ w.link("Hazards") }}.</li>
+</ul>
+
+<h2>What the air does to you</h2>
+{% set effects = {"oxygen": "Oxygen damage", "poison": "Poison damage",
+                  "rich": "Oxygen damage wears off " ~ o.RICH_RECOVERY_FACTOR ~ " times as fast, and fires burn hotter",
+                  "time": "You lose time: everything aboard runs " ~ a.N2O_TIME_FACTOR ~ " times as fast for you"} %}
+<table class="wiki-table">
+  <thead><tr><th>Gas</th><th>Limit</th><th>Past it</th></tr></thead>
+  <tbody>
+    {% for name, gas, limit, worst, effect in a.LIMITS %}
+    <tr><td>{{ name }}</td><td>{{ "below" if worst < limit else "above" }} {{ limit }} kPa</td>
+      <td>{{ effects[effect] }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<ul>
+  <li>Oxygen and poison damage run at {{ per_minute|round|int }}% a minute just past a limit, rising to
+    {{ (per_minute * 2)|round|int }}% a minute the further past it the air goes.</li>
+  <li>NPC crew breathing past the Nitrous Oxide limit fall asleep where they are and do no work until it clears.</li>
   <li>You're warned as your oxygen damage passes {{ o.WARNING_THRESHOLDS|join("%, ") }}%.</li>
-  <li>At {{ o.DEATH_THRESHOLD }}% you pass out, and emergency systems revive you in your Quarters badly hurt. See
-    {{ w.link("Health") }}.</li>
+  <li>At {{ o.DEATH_THRESHOLD }}% you die. In a Peaceful round emergency systems revive you in your Quarters instead,
+    with every limb at {{ o.POST_DEATH_LIMB_HEALTH }}% and {{ o.POST_DEATH_OXYGEN }}% oxygen damage. See
+    {{ w.link("Modes and Careers") }}.</li>
+  <li>The Air Monitor in {{ w.link("Atmospherics") }} reads the air against every limit, and Station Status and the
+    Engineer's PDA show its Oxygen, its pressure and how full the reservoir is.</li>
+</ul>
+
+<h2>The reservoir</h2>
+<p>
+  The reservoir starts each shift with {{ a.RESERVOIR_FILL|round|int }} mol of air: enough for the longest shift at
+  level 10 with half as much again, so on a quiet shift nobody needs to touch it. It runs low after hull breaches,
+  venting or tampering. Whatever is in it is what the station's air turns into: pump Oxygen in and the air grows
+  Oxygen-rich, while Plasma or Carbon Dioxide in the reservoir hurts the whole station. The Scientist in Atmospherics
+  looks after it. See {{ w.link("Atmospherics") }}.
+</p>
+
+<h2>Emergency oxygen</h2>
+<ul>
+  <li>Hold a Gas Tank in a hand with its valve open and you breathe from it through a mask instead of the station's
+    air. Whatever is in the tank is what you breathe.</li>
+  <li>A full tank lasts about {{ a.TANK_LASTS_SECONDS // 60 }} minutes. You're told when it is down to a quarter and
+    when it runs out, and then you are back on the station's air.</li>
+  <li>Open and close the valve from the tank's actions in your inventory. A tank in your inventory, or with its valve
+    closed, does nothing. Your Character Sheet shows when you are breathing from one.</li>
+  <li>Fill one at the Canister Rack in {{ w.link("Atmospherics") }}.</li>
 </ul>
 
 <h2>Recovering</h2>
 <p>
-  Once life support is back above level {{ o.DAMAGE_THRESHOLD_LEVEL }}, oxygen damage wears off by 1% every
+  While the air has enough Oxygen and pressure and not too much Carbon Dioxide, oxygen damage wears off by 1% every
   {{ o.RECOVERY_SECONDS_PER_PERCENT }} seconds, but only down to {{ o.DOCTOR_REQUIRED_FLOOR }}% if it was that high or
-  higher. Past that point, a Doctor has to treat it. See {{ w.link("Medical") }}.
+  higher. Past that point, a Doctor has to treat it. Poison damage never wears off on its own. See
+  {{ w.link("Medical") }}.
 </p>
 
 <h2>Keeping it running</h2>
 <p>
   Life support is set from the Engineering Panel and drains the battery like any other system. See
-  {{ w.link("Power") }}. The Captain may also be asked to approve diverting power to it. See {{ w.link("Captain") }}.
+  {{ w.link("Power") }}. A dead battery shuts it down, and once there is charge again someone has to bring it back up:
+  the Engineer crew member does, or you do if that is your job. The Captain may also be asked to approve diverting
+  power to it. See {{ w.link("Captain") }}.
 </p>
 {% endblock %}

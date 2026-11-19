@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Inventory</h2>
+{{ ui.panel_header("Inventory") }}
 {{ ui.hand_rows(p.hands) }}
 <div class="listbox tall" data-scroll-key="inventory">
   {% for item in p.item_rows %}
@@ -11,5 +11,5 @@
 <div class="button-row">
   {{ ui.btn("Examine", "panel.examine", disabled=not p.can_examine) }}
   {{ ui.btn("Actions", "panel.actions", disabled=not p.can_act) }}
-  {{ ui.close_btn() }}
+  {% if p.can_scan %}{{ ui.btn("Scan with PDA", "panel.scan") }}{% endif %}
 </div>

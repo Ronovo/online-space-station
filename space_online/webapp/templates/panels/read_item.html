@@ -1,4 +1,3 @@
 {% import "game/_ui.html" as ui %}
-<h2>{{ p.name }}</h2>
+{{ ui.panel_header(p.name) }}
 <pre class="text-block{% if p.is_map %} monospace{% endif %}" data-scroll-key="read">{{ p.content }}</pre>
-<div class="button-row">{{ ui.close_btn() }}</div>

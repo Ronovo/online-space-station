@@ -43,7 +43,7 @@ GROWTH_STAGES = 5  # 1..5, mature at 5
 GROWTH_CLASS_SECONDS = {
     "crop": 3 * 60,
     "fruiting": 5 * 60,
-    "tree": 8 * 60,
+    "tree": 5 * 60,
 }
 
 GROWTH_STAGE_LABELS = {
@@ -61,6 +61,9 @@ MIN_STAGE_SECONDS = 30
 # applying it again just keeps the bonus at this value.
 MIRACLE_GROW_SPEED_BONUS = 0.1
 
+# A plant given "The Ooze" Mutagen has this chance of a mutant harvest (see food.MUTANT_OF).
+MUTATION_CHANCE = 0.35
+
 # Plentiful Harvest multiplies produce quantity on the next harvest.
 PLENTIFUL_HARVEST_YIELD_MULTIPLIER = 3
 
@@ -68,6 +71,7 @@ BOTANY_ITEMS = {
     "tomato_seeds": {
         "id": "tomato_seeds",
         "name": "Tomato Seeds",
+        "plural": True,
         "description": "Grows into juicy red tomatoes.",
         "category": "Botany",
         "attributes": {
@@ -81,6 +85,7 @@ BOTANY_ITEMS = {
     "potato_seeds": {
         "id": "potato_seeds",
         "name": "Potato Seeds",
+        "plural": True,
         "description": "Produces starchy potatoes.",
         "category": "Botany",
         "attributes": {
@@ -94,6 +99,7 @@ BOTANY_ITEMS = {
     "wheat_seeds": {
         "id": "wheat_seeds",
         "name": "Wheat Seeds",
+        "plural": True,
         "description": "Grows into tall wheat stalks.",
         "category": "Botany",
         "attributes": {
@@ -107,6 +113,7 @@ BOTANY_ITEMS = {
     "carrot_seeds": {
         "id": "carrot_seeds",
         "name": "Carrot Seeds",
+        "plural": True,
         "description": "Produces orange root vegetables.",
         "category": "Botany",
         "attributes": {
@@ -120,6 +127,7 @@ BOTANY_ITEMS = {
     "apple_seeds": {
         "id": "apple_seeds",
         "name": "Apple Seeds",
+        "plural": True,
         "description": "Grows into small apple trees.",
         "category": "Botany",
         "attributes": {
@@ -133,6 +141,7 @@ BOTANY_ITEMS = {
     "aloe_seeds": {
         "id": "aloe_seeds",
         "name": "Aloe Seeds",
+        "plural": True,
         "description": "Grows into aloe plants whose gel soothes burns.",
         "category": "Botany",
         "attributes": {
@@ -190,6 +199,7 @@ BOTANY_ITEMS = {
         "category": "Botany",
         "attributes": {
             "vend_kinds": ["tool"],
+            "attack": 6,
         },
         "actions": ["examine", "equip", "drop"],
     },
@@ -200,6 +210,7 @@ BOTANY_ITEMS = {
         "category": "Botany",
         "attributes": {
             "vend_kinds": ["tool"],
+            "attack": 25,
         },
         "actions": ["examine", "equip", "drop"],
     },
@@ -225,6 +236,23 @@ def empty_planter():
         "yield_multiplier": 1,
         "ooze_applied": False,
         "announced": None,
+        "tended_by": None,
+        "asked_at_stage": None,
+    }
+
+
+def planted_from_seed(seed_item, elapsed_seconds):
+    """A planter record with seed_item growing in it, planted at elapsed_seconds."""
+    attrs = seed_item.get("attributes") or {}
+    return {
+        **empty_planter(),
+        "occupied": True,
+        "plant": attrs.get("plant_name") or seed_item.get("name", "item"),
+        "seed_id": seed_item.get("id"),
+        "produces": attrs.get("produces"),
+        "growth_class": attrs.get("growth_class") or "crop",
+        "planted_at_seconds": elapsed_seconds,
+        "growth_stage": 1,
     }
 
 
@@ -356,3 +384,17 @@ def refresh_all_planters_growth(player_data, elapsed_seconds):
     for planter in planters:
         refresh_planter_growth(planter, elapsed_seconds)
     return planters
+
+
+def water_npc_planters(player_data, elapsed_seconds):
+    """Water every living plant the Botanist NPC tends."""
+    for planter in refresh_all_planters_growth(player_data, elapsed_seconds):
+        if planter["tended_by"] == "npc" and not planter["dead"]:
+            planter["watered"] = True
+
+
+def seconds_to_mature(planter, elapsed_seconds):
+    """Seconds until a growing plant is mature, or 0 once it is."""
+    stage_seconds = effective_stage_seconds(planter["growth_class"], planter["miracle_grow"])
+    mature_at = planter["planted_at_seconds"] + (GROWTH_STAGES - 1) * stage_seconds
+    return max(0, int(mature_at - elapsed_seconds))

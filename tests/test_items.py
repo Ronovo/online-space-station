@@ -1,45 +1,23 @@
-from helpers import new_game, reports
+from helpers import (
+    give,
+    index_of,
+    item_action,
+    last_message,
+    new_game,
+    notes,
+    panel,
+    reports,
+    select_item,
+    tick_after,
+)
+from space_online.game.helper_methods.needs import DEFAULT_FEEDS, DEFAULT_QUENCHES
 from space_online.game.objects.items import (
     add_to_inventory,
     get_item_definition,
     inventory_item_count,
     remove_one_from_inventory,
 )
-
-
-def give(game, *item_ids):
-    for item_id in item_ids:
-        add_to_inventory(game.player_data, get_item_definition(item_id))
-    return game
-
-
-def index_of(game, item_id):
-    return next(i for i, item in enumerate(game.player_data["inventory"]) if item.get("id") == item_id)
-
-
-def panel(game):
-    return game.view()["panel"]
-
-
-def last_message(game):
-    return game._messages[-1][1:3]
-
-
-def notes(game):
-    return [note["text"] for note in game.player_data["notes"]]
-
-
-def open_actions(game, item_id):
-    """Open the inventory, select item_id and open its actions menu."""
-    game.ui["panels"] = []
-    game.open_panel("inventory")
-    game.perform("panel.select", {"index": index_of(game, item_id)})
-    game.perform("panel.actions", {})
-
-
-def do(game, item_id, action):
-    open_actions(game, item_id)
-    game.perform("panel.item_action", {"name": action})
+from space_online.game.special_rooms.quarters import REST_HEAL_PER_MINUTE
 
 
 def test_unknown_items_have_no_definition():
@@ -82,21 +60,23 @@ def test_nothing_selected_means_nothing_to_examine_or_do():
     game.perform("panel.select", {"index": 5})
     game.perform("panel.examine", {})
     game.perform("panel.actions", {})
-    assert [message for _, _, message, _ in game._messages] == [
+    assert [message for _, message, _ in game._messages] == [
         "Could not identify the selected item.", "Cannot perform actions on this item."]
 
 
 def test_an_item_with_nothing_to_do_says_so():
     game = new_game()
     add_to_inventory(game.player_data, {"id": "pebble", "name": "Pebble", "actions": ["examine"]})
-    open_actions(game, "pebble")
+    select_item(game, index_of(game, "pebble"))
+    game.perform("panel.actions", {})
     assert last_message(game) == ("No Actions", "No special actions available for Pebble.")
     assert panel(game)["type"] == "inventory"
 
 
 def test_tools_offer_drop_but_not_use():
     game = give(new_game(), "wrench")
-    open_actions(game, "wrench")
+    select_item(game, index_of(game, "wrench"))
+    game.perform("panel.actions", {})
     ctx = panel(game)["ctx"]
     assert (ctx["title"], [a["name"] for a in ctx["actions"]]) == ("Actions: Wrench", ["drop"])
     game.perform("panel.item_action", {"name": "use"})
@@ -105,40 +85,56 @@ def test_tools_offer_drop_but_not_use():
 
 def test_reading_a_book_and_the_station_map():
     game = give(new_game(), "welcome_guide", "station_map")
-    do(game, "welcome_guide", "read")
+    item_action(game, index_of(game, "welcome_guide"), "read")
     ctx = panel(game)["ctx"]
     assert (ctx["title"], ctx["is_map"]) == ("Reading: Welcome Guide", False)
     assert ctx["content"] == get_item_definition("welcome_guide")["attributes"]["content"]
-    do(game, "station_map", "read")
+    item_action(game, index_of(game, "station_map"), "read")
     assert panel(game)["ctx"]["is_map"]
     assert notes(game) == ["Read the Welcome Guide.", "Read the Station Map."]
 
 
 def test_a_panel_for_an_item_that_is_gone_closes():
     game = give(new_game(), "welcome_guide")
-    do(game, "welcome_guide", "read")
+    item_action(game, index_of(game, "welcome_guide"), "read")
     game.player_data["inventory"].clear()
     assert panel(game)["type"] == "inventory"
 
 
-def test_dropping_asks_first_and_takes_one():
-    game = give(new_game(), "snack", "snack")
-    do(game, "snack", "drop")
-    choice = game.view()["choice"]
-    assert (choice["title"], choice["buttons"]) == ("Confirm Drop", ["Yes", "No"])
-    game.perform("game.choose", {"id": choice["id"], "index": 0})
+def test_dropping_puts_one_down_where_you_stand_and_it_stays_there():
+    game = give(new_game(), "snack", "snack", "wrench")
+    item_action(game, index_of(game, "snack"), "drop")
     assert game.player_data["inventory"][0]["quantity"] == 1
     assert panel(game)["type"] == "inventory"
+    assert last_message(game) == ("Drop", "You put the Snack down. It will stay here.")
     assert notes(game)[-1] == "Dropped the Snack."
+    item_action(game, index_of(game, "snack"), "drop")
+    item_action(game, index_of(game, "wrench"), "drop")
+    assert game.player_data["inventory"] == []
+    assert [(item["id"], item["quantity"]) for item in game.player_data["floor"]["-1,0"]] == [("snack", 2),
+                                                                                           ("wrench", 1)]
+    game.ui["panels"] = []
+    assert game.view()["floor"] == [{"index": 0, "label": "Snack x 2"}, {"index": 1, "label": "Wrench"}]
+    game.perform("room.door", {})
+    assert game.view()["floor"] == []
 
 
-def test_a_drop_confirmed_after_the_item_moved_does_nothing():
-    game = give(new_game(), "snack")
-    do(game, "snack", "drop")
-    choice_id = game.ui["choices"][0]["id"]
-    game.player_data["inventory"][0] = get_item_definition("medkit")
-    game.perform("game.choose", {"id": choice_id, "index": 0})
-    assert [item["id"] for item in game.player_data["inventory"]] == ["medkit"]
+def test_picking_up_takes_the_whole_stack_from_the_floor_where_you_stand():
+    game = give(new_game(), "snack", "snack", "wrench")
+    for item_id in ("snack", "snack", "wrench"):
+        item_action(game, index_of(game, item_id), "drop")
+    game.perform("game.pick_up", {"index": 0})
+    assert game.player_data["inventory"] == []
+    game.ui["panels"] = []
+    game.perform("game.pick_up", {"index": 5})
+    game.perform("game.pick_up", {"index": 0})
+    assert [(item["id"], item["quantity"]) for item in game.player_data["inventory"]] == [("snack", 2)]
+    assert last_message(game) == ("Pick Up", "You pick up the Snack x 2.")
+    assert notes(game)[-1] == "Picked up the Snack."
+    assert game.view()["floor"] == [{"index": 0, "label": "Wrench"}]
+    game.perform("room.door", {})
+    game.perform("game.pick_up", {"index": 0})
+    assert len(game.player_data["inventory"]) == 1
 
 
 def drink(alcoholic):
@@ -150,19 +146,27 @@ def drink(alcoholic):
 def test_drinking_adds_alcohol_only_for_alcoholic_drinks():
     game = new_game()
     add_to_inventory(game.player_data, drink(False))
-    do(game, "drink_test", "drink")
-    assert last_message(game) == ("Drink", "You finish the Test Drink.")
+    item_action(game, index_of(game, "drink_test"), "drink")
+    assert last_message(game) == ("Drink", "You finish the Test Drink.\nThirst: 0%")
+    game.player_data["needs"]["thirst"] = 70
     add_to_inventory(game.player_data, drink(True))
-    do(game, "drink_test", "drink")
-    assert last_message(game) == ("Drink", "You finish the Test Drink.\nAlcohol: 5.0%")
+    item_action(game, index_of(game, "drink_test"), "drink")
+    assert last_message(game) == ("Drink", f"You finish the Test Drink.\nThirst: {70 - DEFAULT_QUENCHES}%\n"
+                                           "Alcohol: 5.0%")
     assert game.player_data["alcohol_percent"] == 5
     assert game.player_data["inventory"] == []
 
 
 def test_eating():
     game = give(new_game(), "snack")
-    do(game, "snack", "eat")
-    assert last_message(game) == ("Eat", "You eat the Snack.")
+    item_action(game, index_of(game, "snack"), "eat")
+    assert last_message(game) == ("Eat", "You eat the Snack.\nHunger: 0%")
+    game.player_data["needs"]["hunger"] = 90
+    give(game, "tomato", "emergency_rations")
+    item_action(game, index_of(game, "tomato"), "eat")
+    assert game.player_data["needs"]["hunger"] == 90 - DEFAULT_FEEDS
+    item_action(game, index_of(game, "emergency_rations"), "eat")
+    assert last_message(game) == ("Eat", f"You eat the Emergency Rations.\nHunger: {90 - DEFAULT_FEEDS - 50}%")
     assert game.player_data["inventory"] == []
     assert panel(game)["type"] == "inventory"
 
@@ -171,7 +175,7 @@ def test_a_medkit_heals_ten_percent_of_everything_hurt():
     game = give(new_game(), "medkit")
     game.player_data["limbs"]["head"] = 50
     game.player_data["damage"]["burn"] = 30
-    do(game, "medkit", "use")
+    item_action(game, index_of(game, "medkit"), "use")
     assert (game.player_data["limbs"]["head"], game.player_data["damage"]["burn"]) == (60, 20)
     assert last_message(game) == ("Medkit", "You use the medkit:\n\nHead: 50% → 60%\nBurn: 30% → 20%")
     assert game.player_data["inventory"] == []
@@ -179,8 +183,8 @@ def test_a_medkit_heals_ten_percent_of_everything_hurt():
 
 def test_a_medkit_is_kept_when_nothing_needs_healing():
     game = give(new_game(), "medkit")
-    do(game, "medkit", "use")
-    assert last_message(game) == ("Medkit", "You are already at full health. The medkit is not needed.")
+    item_action(game, index_of(game, "medkit"), "use")
+    assert last_message(game) == ("Medkit", "You have nothing for the medkit to treat. It is not needed.")
     assert len(game.player_data["inventory"]) == 1
 
 
@@ -188,7 +192,7 @@ def test_aloe_soothes_burns_only():
     game = give(new_game(), "aloe")
     game.player_data["damage"]["burn"] = 15
     game.player_data["limbs"]["head"] = 50
-    do(game, "aloe", "use")
+    item_action(game, index_of(game, "aloe"), "use")
     assert (game.player_data["damage"]["burn"], game.player_data["limbs"]["head"]) == (5, 50)
     assert last_message(game) == ("Aloe", "The aloe soothes your burns.\n\nBurn: 15% → 5%")
     assert notes(game)[-1] == "Used an aloe leaf on your burns."
@@ -198,14 +202,23 @@ def test_aloe_soothes_burns_only():
 def test_aloe_is_kept_when_there_are_no_burns():
     game = give(new_game(), "aloe")
     game.player_data["damage"]["poison"] = 30
-    do(game, "aloe", "use")
+    item_action(game, index_of(game, "aloe"), "use")
     assert last_message(game) == ("Aloe", "You have no burns for the aloe to soothe.")
     assert (len(game.player_data["inventory"]), game.player_data["damage"]["poison"]) == (1, 30)
 
 
 def open_toolkit(game):
-    do(game, "basic_tools", "use")
+    item_action(game, index_of(game, "basic_tools"), "use")
     return panel(game)
+
+
+def putting_back_the_screwdriver():
+    """A Basic Tools set without its Screwdriver, the Screwdriver in the inventory and the put-back list open."""
+    game = give(new_game(), "basic_tools", "screwdriver")
+    game.player_data["inventory"][0]["attributes"]["contents"].pop(1)
+    open_toolkit(game)
+    game.perform("panel.put_back", {})
+    return game
 
 
 def test_pulling_tools_out_of_the_set_and_putting_them_back():
@@ -250,23 +263,16 @@ def test_nothing_to_put_back():
 
 
 def test_putting_back_a_tool_whose_slot_was_filled_meanwhile():
-    game = give(new_game(), "basic_tools", "screwdriver")
-    toolkit = game.player_data["inventory"][0]
-    toolkit["attributes"]["contents"].pop(1)
-    open_toolkit(game)
-    game.perform("panel.put_back", {})
+    game = putting_back_the_screwdriver()
     game.perform("panel.select", {"index": 1})
-    toolkit["attributes"]["contents"].append(get_item_definition("screwdriver"))
+    game.player_data["inventory"][0]["attributes"]["contents"].append(get_item_definition("screwdriver"))
     game.perform("panel.confirm", {})
     assert last_message(game) == ("Put Back", "That tool slot is already filled.")
     assert panel(game)["type"] == "basic_tools"
 
 
 def test_putting_back_after_the_inventory_changed():
-    game = give(new_game(), "basic_tools", "screwdriver")
-    game.player_data["inventory"][0]["attributes"]["contents"].pop(1)
-    open_toolkit(game)
-    game.perform("panel.put_back", {})
+    game = putting_back_the_screwdriver()
     game.perform("panel.select", {"index": 1})
     game.player_data["inventory"].insert(1, get_item_definition("medkit"))
     game.perform("panel.confirm", {})
@@ -274,10 +280,7 @@ def test_putting_back_after_the_inventory_changed():
 
 
 def test_toolkit_panels_close_when_the_set_is_gone():
-    game = give(new_game(), "basic_tools", "screwdriver")
-    game.player_data["inventory"][0]["attributes"]["contents"].pop(1)
-    open_toolkit(game)
-    game.perform("panel.put_back", {})
+    game = putting_back_the_screwdriver()
     uid = game.player_data["inventory"].pop(0)["uid"]
     game.perform("panel.confirm", {})
     assert panel(game)["type"] == "inventory"
@@ -321,7 +324,7 @@ def test_a_hand_that_does_not_exist_takes_nothing():
 
 def test_equipping_from_the_item_menu():
     game = give(new_game(), "trowel")
-    do(game, "trowel", "equip")
+    item_action(game, index_of(game, "trowel"), "equip")
     assert panel(game)["ctx"]["title"] == "Equip: Trowel"
     game.perform("panel.choose", {"side": "right"})
     assert game.player_data["hands"]["right"]["id"] == "trowel"
@@ -330,14 +333,14 @@ def test_equipping_from_the_item_menu():
 
 def test_the_equip_menu_closes_when_its_item_is_gone():
     game = give(new_game(), "trowel")
-    do(game, "trowel", "equip")
+    item_action(game, index_of(game, "trowel"), "equip")
     game.player_data["inventory"].clear()
     assert panel(game)["type"] == "inventory"
 
 
 def test_equipping_an_item_that_is_gone():
     game = give(new_game(), "trowel")
-    do(game, "trowel", "equip")
+    item_action(game, index_of(game, "trowel"), "equip")
     game.player_data["inventory"].clear()
     game.perform("panel.choose", {"side": "right"})
     assert last_message(game) == ("Error", "Invalid item index for equip.")
@@ -364,9 +367,6 @@ def test_quarters():
     screen = game.view()["screen"]
     assert (screen["type"], screen["name"], screen["job"], screen["credits"]) == ("quarters", "Ada", "Staff Assistant",
                                                                                 1000)
-    game.perform("room.bed", {})
-    game.perform("game.choose", {"id": game.ui["choices"][0]["id"], "index": 0})
-    assert last_message(game) == ("Game Saved", "Your game has been saved successfully.")
     game.perform("room.computer", {})
     assert panel(game)["ctx"] == {}
     game.perform("panel.stock_market", {})
@@ -375,3 +375,43 @@ def test_quarters():
     game.perform("room.not_an_action", {})
     game.perform("room.door", {})
     assert game.player_data["location"] == {"x": 0, "y": 0}
+
+
+def test_resting_in_bed_mends_limbs_until_you_get_up_or_leave():
+    game = new_game()
+    game.player_data["limbs"].update(head=50, chest=97)
+    game.perform("room.bed", {})
+    assert last_message(game) == ("Bed", "You lie down to rest. Your limbs will mend while you stay in bed.")
+    assert game.view()["screen"]["resting"] is True
+    tick_after(game)
+    assert (game.player_data["limbs"]["head"], game.player_data["limbs"]["chest"]) == (50 + REST_HEAL_PER_MINUTE, 100)
+    game.perform("room.bed", {})
+    assert last_message(game) == ("Bed", "You get out of bed.")
+    tick_after(game)
+    assert game.player_data["limbs"]["head"] == 50 + REST_HEAL_PER_MINUTE
+    game.perform("room.bed", {})
+    game.perform("room.door", {})
+    tick_after(game)
+    assert (game.player_data["resting"], game.player_data["limbs"]["head"]) == (False, 50 + REST_HEAL_PER_MINUTE)
+
+
+def test_eating_a_mutant_mends_what_it_says_it_does_and_royal_aloe_is_used_on_burns():
+    game = give(new_game(), "golden_apple", "blood_tomato", "royal_aloe")
+    game.player_data["limbs"].update(head=80, chest=95)
+    item_action(game, index_of(game, "golden_apple"), "eat")
+    assert last_message(game) == ("Eat", "You eat the Golden Apple.\nHunger: 0%\nHead: 80% → 90%\nChest: 95% → 100%")
+    item_action(game, index_of(game, "blood_tomato"), "eat")
+    assert last_message(game) == ("Eat", "You eat the Blood Tomato.\nHunger: 0%")
+    game.player_data["damage"]["burn"] = 40
+    item_action(game, index_of(game, "royal_aloe"), "use")
+    assert (game.player_data["damage"]["burn"], game.player_data["inventory"]) == (15, [])
+
+
+def test_a_short_rest_adds_up_over_ticks():
+    game = new_game()
+    game.player_data["limbs"]["head"] = 50
+    game.perform("room.bed", {})
+    tick_after(game, 3)
+    assert game.player_data["limbs"]["head"] == 50
+    tick_after(game, 3)
+    assert game.player_data["limbs"]["head"] == 51

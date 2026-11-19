@@ -1,9 +1,8 @@
 {% import "game/_ui.html" as ui %}
-<h2>Available Ingredients</h2>
+{{ ui.panel_header("Available Ingredients") }}
 <div class="text-block" data-scroll-key="ingredient-list">
   {% for title, names in p.sections %}
     <p class="text-header">{{ title }}</p>
     {% for name in names %}<p class="indent">• {{ name }}</p>{% endfor %}
   {% endfor %}
 </div>
-<div class="button-row">{{ ui.close_btn() }}</div>

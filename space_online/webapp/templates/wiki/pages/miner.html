@@ -1,0 +1,34 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set e = facts.events %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You bring ore aboard and sell it at the Cargo Bay's export counter, which sends it up to the station stores. With
+  you in the job, the fabricator only has the ore you sell. From the locker room at the Miner Station you take your
+  gear, run the magnet, and fly the shuttle down to the planet below. You can also lock and unlock the Mining Bay door. See
+  {{ w.link("Mining") }}.
+</p>
+
+<h2>Job events</h2>
+<p>
+  <b>Ore Request</b>: a crew member asks for a common ore. Press <b>Deliver</b> in their room while they're on duty,
+  for {{ e.ITEM_REQUEST_MIN_REWARD }}-{{ e.ITEM_REQUEST_MAX_REWARD }} credits. See
+  {{ w.link("Duties and Job Events") }}.
+</p>
+
+<h2>Tips</h2>
+<ul>
+  <li>Leave the magnet on. It keeps pulling rocks in while you're anywhere else on the station.</li>
+  <li>Hold the Pickaxe in one hand and the Blast Shield in the other before you board the shuttle.</li>
+  <li>Block, then Attack: the counter-attack hits harder and you take less on the way.</li>
+  <li>Fly back before you're badly hurt. A rescue costs you the whole trip's ore.</li>
+  <li>Each search takes {{ facts.mining_bay.SEARCH_SECONDS_RANGE[0] }}-{{ facts.mining_bay.SEARCH_SECONDS_RANGE[1] }}
+    seconds, and the hold takes {{ facts.mining_bay.HOLD_CAPACITY }} ore a trip.</li>
+  <li>Don't sell an ore you've been asked to deliver.</li>
+  <li>An alien artifact from a planet is worth a finder's fee at the Research Lab.</li>
+  <li>Use your PDA on a vein you don't recognise to scan it. It only takes one hand, which leaves the other for the
+    Pickaxe or the Blast Shield. Its Ore Log lists what you have identified, and it messages you when the ore store
+    runs low. See {{ w.link("PDA") }}.</li>
+</ul>
+{% endblock %}

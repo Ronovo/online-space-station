@@ -6,12 +6,15 @@ counter here instead of calling ``datetime.now()`` independently. The
 counter starts at 0 for a new game and only ever advances forward.
 
 Each tick adds the real time passed since ``last_real_time`` to
-``elapsed_seconds``. Game systems schedule an absolute ``*_at_seconds`` value
+``elapsed_seconds``, up to MAX_TICK_SECONDS, so the shift stands still while
+nobody is playing it. Game systems schedule an absolute ``*_at_seconds`` value
 against this timer and compute "remaining" as that value minus the current
 ``elapsed_seconds``.
 """
 
 import time
+
+MAX_TICK_SECONDS = 5.0
 
 
 def default_game_clock():
@@ -22,18 +25,23 @@ def default_game_clock():
 
 
 def advance(player_data):
-    """Advance the master timer by the real time elapsed since the last call.
+    """Advance the master timer by the real time elapsed since the last call, up to MAX_TICK_SECONDS.
 
     Returns (elapsed_seconds, delta_seconds).
     """
     clock = player_data["game_clock"]
 
     now = time.time()
-    delta_seconds = max(0.0, now - clock["last_real_time"])
+    delta_seconds = min(MAX_TICK_SECONDS, max(0.0, now - clock["last_real_time"]))
     clock["elapsed_seconds"] += delta_seconds
     clock["last_real_time"] = now
 
     return clock["elapsed_seconds"], delta_seconds
+
+
+def pass_time(player_data, seconds):
+    """Move the master timer on by the game seconds an action takes, on top of the real time played."""
+    player_data["game_clock"]["elapsed_seconds"] += seconds
 
 
 def seconds_since_last_tick(player_data):

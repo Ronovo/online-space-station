@@ -41,10 +41,17 @@
   <li><b>Miracle Grow</b>: the rest of the plant's growth goes {{ (b.MIRACLE_GROW_SPEED_BONUS * 100)|round|int }}%
     faster.</li>
   <li><b>Plentiful Harvest</b>: the harvest yields {{ b.PLENTIFUL_HARVEST_YIELD_MULTIPLIER }} times as much.</li>
-  <li><b>"The Ooze" Mutagen</b>: has no effect yet.</li>
+  <li><b>"The Ooze" Mutagen</b>: gives the plant a {{ (b.MUTATION_CHANCE * 100)|round|int }}% chance of a mutant
+    harvest, below.</li>
   <li><b>Trowel</b> clears a dead or unwanted crop, and a <b>Chainsaw</b> clears a tree. Both are kept.</li>
   <li>Supplies that would do nothing for a plant stay in your hand.</li>
 </ul>
+
+<h3>Sending produce to the kitchen</h3>
+<p>
+  <b>Send Produce to the Kitchen</b> at the station sends what you carry of the produce the stove cooks with up to the
+  station stores. See {{ w.link("Station Stores") }}.
+</p>
 
 <h3>Keeping watch</h3>
 <p>
@@ -56,5 +63,18 @@
 <p>
   {{ facts.food_produce[:-1]|join(", ") }} and {{ facts.food_produce[-1] }} are food. Aloe is a medicinal herb that soothes burns. See
   {{ w.link("Items and Hands") }}. The Bartender also asks the Botanist for produce. See {{ w.link("Botanist") }}.
+  Everything Botany grows sells at the {{ w.link("Cargo") }} Bay's export counter, plain Aloe and the mutants
+  included.
 </p>
+
+<h2>Mutants</h2>
+<p>A plant given The Ooze may come up as its mutant, which does more than the plain kind:</p>
+<table class="wiki-table">
+  <thead><tr><th>Plant</th><th>Mutant</th><th>What it is</th></tr></thead>
+  <tbody>
+    {% for plain, mutant, description in facts.mutants %}
+    <tr><td>{{ plain }}</td><td>{{ mutant }}</td><td>{{ description }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}

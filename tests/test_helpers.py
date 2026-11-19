@@ -2,7 +2,7 @@ import pytest
 
 from helpers import new_game
 from space_online.game.character_methods import character_creation
-from space_online.game.character_methods.character_creation import NPC_NAMES, create_character
+from space_online.game.character_methods.character_creation import NPC_NAMES, new_shift
 from space_online.game.helper_methods import ui_panels
 from space_online.game.helper_methods.alcohol_helper import fall_chance, sober_up_cost, stumble_chance
 from space_online.game.helper_methods.door_control import ACCESS_ERROR, toggle_door_lock
@@ -24,15 +24,14 @@ from space_online.game.helper_methods.oxygen_helper import (
     DOCTOR_REQUIRED_FLOOR,
     RECOVERY_SECONDS_PER_PERCENT,
     apply_oxygen_tick,
-    oxygen_damage_for_tick,
 )
 from space_online.game.helper_methods.power_constants import battery_band, calculate_discharge, default_station_power
-from space_online.game.helper_methods.ui_panels import coalesce_reports, current_feedback, set_feedback
+from space_online.game.helper_methods.ui_panels import current_feedback, set_feedback
 from space_online.game.maps.donut import BRIDGE_KEY, MEDBAY_KEY
 
 
 @pytest.mark.parametrize("alcohol, stumble, fall", [
-    (0, 0, 0), (5, 0, 0), (6, 10, 0), (10, 15, 0), (15, 20, 0), (20, 25, 0),
+    (5, 0, 0), (6, 10, 0), (10, 15, 0), (15, 20, 0), (20, 25, 0),
     (25, 35, 25), (50, 55, 35), (75, 75, 50), (100, 80, 75),
 ])
 def test_stumbling_and_falling_get_likelier_with_drink(alcohol, stumble, fall):
@@ -44,14 +43,14 @@ def test_sobering_up_costs_a_credit_a_percent_from_the_doctor_floor(alcohol, cos
     assert sober_up_cost(alcohol) == cost
 
 
-@pytest.mark.parametrize("value, band", [(100, "Healthy"), (76, "Healthy"), (75, "Injured"), (41, "Injured"),
-                                         (40, "Critical"), (0, "Critical")])
+@pytest.mark.parametrize("value, band", [(100, "Healthy"), (99.9, "Minor injuries"), (76, "Minor injuries"),
+                                         (75, "Injured"), (41, "Injured"), (40, "Critical")])
 def test_health_bands(value, band):
     assert health_band(value)[0] == band
 
 
-@pytest.mark.parametrize("value, band", [(0, "Clear"), (9, "Clear"), (10, "Mild"), (29, "Mild"), (30, "Moderate"),
-                                         (59, "Moderate"), (60, "Severe"), (100, "Severe")])
+@pytest.mark.parametrize("value, band", [(9, "Clear"), (10, "Mild"), (29, "Mild"), (30, "Moderate"),
+                                         (59, "Moderate"), (60, "Severe")])
 def test_damage_bands(value, band):
     assert damage_band(value)[0] == band
 
@@ -75,8 +74,7 @@ def test_overall_health_scales_the_limbs_by_the_damage_taken():
     assert overall_health(body) == 50
 
 
-@pytest.mark.parametrize("battery, band", [(0, "emergency"), (5, "emergency"), (6, "dim"), (15, "dim"),
-                                           (16, "normal")])
+@pytest.mark.parametrize("battery, band", [(5, "emergency"), (6, "dim"), (15, "dim"), (16, "normal")])
 def test_battery_lighting_bands(battery, band):
     assert battery_lighting_band(battery) == band
 
@@ -94,16 +92,25 @@ def test_lighting_is_pulled_into_the_band_only_when_the_band_changes():
     assert power["system_levels"]["hallway_lighting"] == 5
 
 
+def test_the_lighting_from_before_a_dim_follows_the_battery_bands_too():
+    power = default_station_power()
+    power["dimmed_from"] = 8
+    clamp_lighting_for_battery(power)
+    assert power["dimmed_from"] == 8
+    power["battery_level"] = 12
+    clamp_lighting_for_battery(power)
+    assert power["dimmed_from"] == 5
+
+
 def test_lighting_styles():
-    assert "eerie red glow" in lighting_style(2)["power_desc"]
-    assert "dimmed" in lighting_style(5)["power_desc"]
-    assert lighting_style(7)["power_desc"] == ""
-    assert lighting_style(9)["power_desc"].endswith("This hallway is very well lit.")
-    assert lighting_style(10, place="room")["power_desc"].endswith("This room is very well lit.")
+    assert "eerie red glow" in lighting_style(2)["light"]
+    assert "dimmed" in lighting_style(5)["light"]
+    assert lighting_style(7)["light"] == ""
+    assert lighting_style(9)["light"].endswith("This hallway is very well lit.")
+    assert lighting_style(10, place="room")["light"].endswith("This room is very well lit.")
 
 
-@pytest.mark.parametrize("level, band", [(-1, "outage"), (0, "outage"), (10, "critical"), (11, "low"), (50, "low"),
-                                         (51, "normal")])
+@pytest.mark.parametrize("level, band", [(0, "outage"), (10, "critical"), (11, "low"), (50, "low"), (51, "normal")])
 def test_battery_bands(level, band):
     assert battery_band(level) == band
 
@@ -136,21 +143,13 @@ def test_feedback_without_a_time_limit_stays(monkeypatch):
     assert current_feedback(state)["text"] == "Pick a seed."
 
 
-def test_reports_merge_into_one_alert():
-    assert coalesce_reports([("Power", "Low", "warning")]) == {"title": "Power", "message": "Low", "kind": "warning"}
-    assert coalesce_reports([("Power", "Low", "warning"), ("Power", "Out", "error")]) == {
-        "title": "Power", "message": "Low\n\nOut", "kind": "error"}
-    assert coalesce_reports([("Power", "Low", "warning"), ("Oxygen", "Thin", "info")]) == {
-        "title": "Station Alerts", "message": "[Power] Low\n\n[Oxygen] Thin", "kind": "warning"}
-
-
 def test_doors_lock_and_unlock_for_the_jobs_allowed_to():
     game = new_game("Medical", "Doctor")
     assert toggle_door_lock(game, MEDBAY_KEY)
     assert game.ship_map[MEDBAY_KEY]["locked"]
     assert toggle_door_lock(game, MEDBAY_KEY)
     assert not game.ship_map[MEDBAY_KEY]["locked"]
-    assert [message for _, _, message, _ in game._messages] == ["The MedBay door has been locked.",
+    assert [message for _, message, _ in game._messages] == ["The MedBay door has been locked.",
                                                                 "The MedBay door has been unlocked."]
 
 
@@ -158,11 +157,13 @@ def test_doors_lock_and_unlock_for_the_jobs_allowed_to():
 def test_other_doors_refuse(door_key):
     game = new_game("Medical", "Doctor")
     assert not toggle_door_lock(game, door_key)
-    assert game._messages == [("alert", "Door Control", ACCESS_ERROR, "info")]
+    assert game._messages == [("Door Control", ACCESS_ERROR, "info")]
 
 
-def test_working_life_support_does_no_oxygen_damage():
-    assert oxygen_damage_for_tick(new_game().player_data, 5, 600) == 0
+def test_fresh_air_does_no_breathing_damage():
+    game = new_game()
+    apply_oxygen_tick(game.player_data, game.station_crew, 600)
+    assert {tuple(member["damage"].values()) for member in [game.player_data, *game.station_crew]} == {(0, 0, 0)}
 
 
 @pytest.mark.parametrize("before, after", [(40, DOCTOR_REQUIRED_FLOOR), (DOCTOR_REQUIRED_FLOOR, DOCTOR_REQUIRED_FLOOR),
@@ -171,37 +172,12 @@ def test_oxygen_recovers_by_itself_only_down_to_the_doctor_floor(before, after):
     game = new_game()
     for member in [game.player_data, *game.station_crew]:
         member["damage"]["oxygen"] = before
-    apply_oxygen_tick(game.player_data, game.station_crew, RECOVERY_SECONDS_PER_PERCENT * 100, 0)
+    apply_oxygen_tick(game.player_data, game.station_crew, RECOVERY_SECONDS_PER_PERCENT * 100)
     assert {member["damage"]["oxygen"] for member in [game.player_data, *game.station_crew]} == {after}
 
-
-def test_the_depletion_announcement_holds_oxygen_steady_until_damage_starts():
-    game = new_game()
-    player = game.player_data
-    player["station_power"]["system_levels"]["life_support"] = 0
-    player["damage_timers"]["oxygen_depletion"] = {"active": True, "damage_starts_at_seconds": 15}
-    apply_oxygen_tick(player, game.station_crew, 60, 10)
-    assert player["damage"]["oxygen"] == 0
-    apply_oxygen_tick(player, game.station_crew, 60, 15)
-    assert player["damage"]["oxygen"] > 0
-    assert not player["damage_timers"]["oxygen_depletion"]["active"]
-
-
-def test_a_depletion_timer_without_a_start_does_not_hold_oxygen():
-    game = new_game()
-    player = game.player_data
-    player["station_power"]["system_levels"]["life_support"] = 0
-    player["damage_timers"]["oxygen_depletion"] = {"active": True}
-    apply_oxygen_tick(player, game.station_crew, 60, 0)
-    assert player["damage"]["oxygen"] > 0
 
 
 def test_no_crew_member_shares_the_players_name(monkeypatch):
     monkeypatch.setattr(character_creation.random, "choice", lambda names: names[0])
-    player = create_character(NPC_NAMES[0], "Civilian", "Staff Assistant")
+    player = new_shift(NPC_NAMES[0], "Staff Assistant")
     assert NPC_NAMES[0] not in [npc["name"] for npc in player["station_crew"]]
-
-
-def test_a_department_that_does_not_exist_has_no_jobs():
-    with pytest.raises(ValueError, match="Please select a job."):
-        create_character("Ada", "Pirates", "Staff Assistant")

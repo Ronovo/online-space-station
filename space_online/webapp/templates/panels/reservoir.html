@@ -1,0 +1,25 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Reservoir") }}
+<fieldset class="group">
+  <legend>Reservoir Gauge</legend>
+  <p class="result">{{ p.gauge }}</p>
+  <p class="center muted">{{ "%.0f"|format(p.fill) }}% full. Rated to {{ p.rated }} kPa.</p>
+</fieldset>
+<fieldset class="group">
+  <legend>Reservoir Port</legend>
+  {% if p.port %}
+    <p>{{ p.port.label }}: {{ p.port.gauge }}</p>
+  {% else %}
+    <p>Nothing is connected. Connect a canister to the Reservoir Port at the Canister Rack.</p>
+  {% endif %}
+  <div class="slider-row">
+    <label for="reservoir-amount">Amount (mol)</label>
+    <input id="reservoir-amount" type="range" min="0" max="{{ p.max_amount }}" value="{{ p.amount }}" data-action="panel.set_amount">
+    <output for="reservoir-amount">{{ p.amount }}</output>
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Pump In", "panel.pump_in", cls="btn-primary") }}
+    {{ ui.btn("Draw Off", "panel.draw_off") }}
+  </div>
+</fieldset>
+{{ ui.feedback(p.feedback) }}

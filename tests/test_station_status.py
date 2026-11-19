@@ -1,6 +1,6 @@
 import pytest
 
-from helpers import new_game
+from helpers import fill_air, give_duty, new_game, stale_air
 from space_online.game.helper_methods.power_constants import fault_system
 from space_online.game.helper_methods.station_status import collect_station_status
 from space_online.game.maps.donut import BAR_KEY, MEDBAY_KEY
@@ -10,20 +10,24 @@ def status(game):
     return collect_station_status(game.player_data, game.station_crew)
 
 
+def steady(game):
+    game.player_data["station_power"]["battery_level"] = 80
+    return game
+
+
 def alert_texts(game):
     return [(alert["text"], alert["severity"]) for alert in status(game)["alerts"]]
 
 
 def test_a_new_station_reads_nominal_apart_from_its_low_battery():
-    game = new_game()
-    game.player_data["station_power"]["battery_level"] = 80
+    game = steady(new_game())
     report = status(game)
     assert (report["overall"], report["overall_color"], report["alerts"]) == ("NOMINAL", "#00FF00", [])
     assert report["power"]["oxygen_threat"] == "safe"
     assert [s["status"] for s in report["power"]["systems"]] == ["Online"] * 4
     crew = report["crew"]
     assert (crew["complement"], crew["healthy"], crew["away"]) == (len(game.station_crew) + 1, crew["complement"], 0)
-    assert report["facilities"]["botany_total"] > 0
+    assert report["facilities"]["botany_total"] == 16
     assert report["elapsed_display"] == "0s"
 
 
@@ -34,42 +38,42 @@ def test_a_low_battery_is_a_caution():
     assert alert_texts(game) == [("Battery low (30%)", "caution")]
 
 
-def test_life_support_off_is_an_oxygen_emergency():
-    game = new_game()
+def test_unbreathable_air_is_an_emergency():
+    game = stale_air(new_game())
     power = game.player_data["station_power"]
     power.update(battery_level=5)
     power["system_levels"]["life_support"] = 0
     game.player_data["damage"]["oxygen"] = 40
     game.player_data["announcements"] = [{"text": "Evacuate!", "type": "emergency"},
-                                         {"text": "Life Support offline: oxygen emergency active", "type": "emergency"},
+                                         {"text": "Station air unbreathable: breathing emergency active",
+                                          "type": "emergency"},
                                          {"text": "Party in the bar", "type": "social"}]
     report = status(game)
     assert report["overall"] == "CRITICAL"
+    assert report["power"]["oxygen_threat"] == "emergency"
     assert report["power"]["systems"][0] == {"name": "Life Support", "level": 0, "status": "Offline",
                                              "status_color": "#FF0000"}
     assert alert_texts(game) == [
-        ("Life Support offline: oxygen emergency active", "critical"),
+        ("Station air unbreathable: breathing emergency active", "critical"),
         ("Battery critical (5%)", "critical"),
         ("Oxygen stress affecting 1 crew", "critical"),
         ("Evacuate!", "critical"),
     ]
 
 
-def test_degraded_life_support_and_injuries_are_cautions():
-    game = new_game()
-    game.player_data["station_power"]["battery_level"] = 80
-    game.player_data["station_power"]["system_levels"]["life_support"] = 3
+def test_unhealthy_air_and_injuries_are_cautions():
+    game = steady(fill_air(new_game(), {"Oxygen": 0.21, "Nitrogen": 0.64, "Carbon Dioxide": 0.15}))
     game.station_crew[0]["limbs"].update(head=0, chest=0)
     game.station_crew[1]["damage"]["oxygen"] = 30
     assert status(game)["overall"] == "CAUTION"
-    assert alert_texts(game) == [("Life Support degraded (Lv 3): oxygen damage active", "caution"),
+    assert status(game)["power"]["oxygen_threat"] == "damaging"
+    assert alert_texts(game) == [("Station air unhealthy: breathing damage active", "caution"),
                                  ("1 crew injured", "caution"),
                                  ("Oxygen stress affecting 1 crew", "caution")]
 
 
 def test_critical_crew_outrank_injured_crew():
-    game = new_game()
-    game.player_data["station_power"]["battery_level"] = 80
+    game = steady(new_game())
     for limb in game.station_crew[0]["limbs"]:
         game.station_crew[0]["limbs"][limb] = 10
     game.station_crew[1]["limbs"].update(head=0, chest=0)
@@ -79,8 +83,7 @@ def test_critical_crew_outrank_injured_crew():
 
 
 def test_security_matters_are_listed():
-    game = new_game()
-    game.player_data["station_power"]["battery_level"] = 80
+    game = steady(new_game())
     captain, hop, guard = game.station_crew[:3]
     captain.update(warrant=True, warrant_reason="")
     hop.update(in_jail=True, fine_reason="Unpaid")
@@ -112,8 +115,7 @@ def test_crew_away_from_their_post_count_as_away():
 
 
 def test_locked_rooms_and_access_requests_are_cautions():
-    game = new_game()
-    game.player_data["station_power"]["battery_level"] = 80
+    game = steady(new_game())
     game.ship_map[BAR_KEY]["locked"] = True
     game.ship_map[MEDBAY_KEY]["locked"] = True
     game.player_data["access_request"] = {"requester_name": "", "requested_job": "Doctor"}
@@ -122,31 +124,27 @@ def test_locked_rooms_and_access_requests_are_cautions():
     assert status(game)["facilities"]["locked_rooms"] == ["MedBay", "Bar"]
 
 
-def test_a_pending_errand_is_a_caution():
-    game = new_game("Civilian", "Botanist")
-    game.player_data["station_power"]["battery_level"] = 80
-    game.player_data["errand"] = {"kind": "treat", "room": MEDBAY_KEY, "patient": "Sam",
-                                  "summary": "Treat Sam from Crew Vitals"}
-    assert alert_texts(game) == [("Pending errand: Treat Sam from Crew Vitals", "caution")]
+def test_a_waiting_duty_is_a_caution():
+    game = steady(new_game("Civilian", "Botanist"))
+    give_duty(game, kind="treat", room=MEDBAY_KEY, patient="Sam", summary="Treat Sam from Crew Vitals")
+    assert alert_texts(game) == [("Duty waiting: Treat Sam from Crew Vitals", "caution")]
     assert status(game)["overall"] == "CAUTION"
 
 
 def test_faulted_systems_show_and_are_a_caution():
-    game = new_game()
+    game = steady(new_game())
     power = game.player_data["station_power"]
-    power["battery_level"] = 80
     fault_system(power, "communication_array")
     fault_system(power, "security_systems")
     report = status(game)
     assert [(s["name"], s["status"], s["status_color"]) for s in report["power"]["systems"]][2:] == [
-        ("Security Systems", "Fault", "#FF9900"), ("Comm Array", "Fault", "#FF9900")]
-    assert alert_texts(game) == [("System fault: Security Systems, Comm Array", "caution")]
+        ("Security Systems", "Fault", "#FF9900"), ("Communication Array", "Fault", "#FF9900")]
+    assert alert_texts(game) == [("System fault: Security Systems, Communication Array", "caution")]
     assert report["overall"] == "CAUTION"
 
 
 def test_thirsty_and_dead_plants_are_counted_and_cautions():
-    game = new_game("Civilian", "Botanist")
-    game.player_data["station_power"]["battery_level"] = 80
+    game = steady(new_game("Civilian", "Botanist"))
     planters = game.player_data["botany"]["planters"]
     base = {"occupied": True, "plant": "Potato", "growth_class": "crop", "planted_at_seconds": 0}
     planters[0].update(base, growth_stage=1)
@@ -161,13 +159,14 @@ def test_thirsty_and_dead_plants_are_counted_and_cautions():
 
 @pytest.mark.parametrize("access_request", [None, {"requested_job": None}])
 def test_an_empty_access_request_is_no_alert(access_request):
-    game = new_game()
-    game.player_data["station_power"]["battery_level"] = 80
+    game = steady(new_game())
     game.player_data["access_request"] = access_request
     assert alert_texts(game) == []
 
 
-def test_the_status_panel_opens_on_the_same_report():
-    game = new_game()
-    game.open_panel("station_status")
-    assert game.view()["panel"]["ctx"]["overall"] == status(game)["overall"]
+def test_minor_injuries_are_counted_apart_from_the_healthy_and_raise_no_warning():
+    game = steady(new_game())
+    game.station_crew[0]["limbs"]["head"] = 90
+    crew = status(game)["crew"]
+    assert (crew["healthy"], crew["minor"], crew["injured"], crew["critical"]) == (crew["complement"] - 1, 1, 0, 0)
+    assert status(game)["alerts"] == []

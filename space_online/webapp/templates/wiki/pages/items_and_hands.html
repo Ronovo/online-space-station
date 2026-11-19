@@ -8,16 +8,22 @@
 </p>
 <ul>
   <li><b>Read</b> books like the Welcome Guide and the Station Map.</li>
-  <li><b>Eat</b> food and <b>Drink</b> drinks. Alcoholic drinks raise your alcohol level.</li>
-  <li><b>Use</b> a Medkit or Aloe to heal, or open a Basic Tools set.</li>
+  <li><b>Eat</b> food and <b>Drink</b> drinks, which bring your hunger and thirst down. Alcoholic drinks raise your
+    alcohol level. See {{ w.link("Health") }}.</li>
+  <li><b>Use</b> a Medkit, Aloe or a remedy to heal, an analysed artifact, the Gas Analyzer to read the air and your
+    tanks, or a Tank Transfer Valve or bomb to work its valve. Use also opens a Basic Tools set. A Gas Tank has
+    <b>Open Valve</b> and <b>Close Valve</b>. See {{ w.link("Atmospherics") }}.</li>
   <li><b>Equip</b> an item into one of your hands.</li>
-  <li><b>Drop</b> an item. It asks first, because a dropped item is gone for good.</li>
+  <li><b>Drop</b> an item. It stays on the floor where you dropped it, in a room or a hallway, and shows under the
+    screen there with a <b>Pick Up</b> button.</li>
 </ul>
 
 <h2>Hands</h2>
 <p>
   You have a left and a right hand, and the <b>Hands</b> button is on every screen. Some things only work from your
   hands: seeds, liquids and tools are used on Botany planters by holding them. See {{ w.link("Botany") }}.
+  Your PDA only opens and scans while it is in a hand. See {{ w.link("PDA") }}.
+  You breathe from a Gas Tank only while it is in a hand with its valve open.
   Unequipping puts the item back in your inventory.
 </p>
 
@@ -34,14 +40,22 @@
   <li><b>Aloe</b>: lowers burn damage by {{ facts.aloe_relief }}%. It's kept if you have no burns.</li>
   <li><b>Basic Tools</b>: a set holding a Wrench, Screwdriver and Wirecutters. Use it to pull a tool out or put one
     back. Carrying the set lets you repair faulted systems. See {{ w.link("Engineering") }}.</li>
+  <li><b>Wrench</b>, <b>Wirecutters</b> and the <b>Fire Extinguisher</b> fix room hazards. See
+    {{ w.link("Hazards") }}. A tool still inside a Basic Tools set you carry counts.</li>
+  <li><b>Screwdriver</b> and <b>Wirecutters</b> together force a locked door. See {{ w.link("The Station") }}.</li>
 </ul>
 
 <h2>Where items come from</h2>
 <ul>
-  <li>The Engineering fabricator makes tools and books for anyone. See {{ w.link("Engineering") }}.</li>
+  <li>The Engineering fabricator makes tools, books and weapons for anyone, out of the ore in the station stores.
+    See {{ w.link("Engineering") }}.</li>
+  <li>The {{ w.link("Cargo") }} Bay's supply counter sells supplies, and the Order Console, there or on your PDA,
+    takes requests.</li>
+  <li>The Tank Rack in {{ w.link("Atmospherics") }} hands out a Gas Tank and a Gas Analyzer, and one Tank Transfer
+    Valve a shift.</li>
   <li>The Botany vending machine and the Botanist's produce stand sell seeds, supplies and produce. See
     {{ w.link("Botany") }}.</li>
-  <li>The Bar sells drinks. See {{ w.link("Bar") }}.</li>
+  <li>The Bar sells drinks and the Kitchen sells food. See {{ w.link("Bar") }} and {{ w.link("Kitchen") }}.</li>
   <li>Hallway supply crates and vending machines sometimes hand out items.</li>
 </ul>
 {% endblock %}

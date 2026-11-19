@@ -1,10 +1,10 @@
 {% import "game/_ui.html" as ui %}
-<h2>Jail</h2>
+{{ ui.panel_header("Jail", "Return to security") }}
 <fieldset class="group">
   <legend>Prisoners</legend>
   <div class="listbox" data-scroll-key="prisoners">
     {% for row in p.rows %}
-      {{ ui.row(row.label, "panel.select", {"index": row.index}, row.index == p.selected) }}
+      {{ ui.row(row.label, "panel.select", {"name": row.name}, row.name == p.selected) }}
     {% else %}
       <div class="list-item">No prisoners in jail.</div>
     {% endfor %}
@@ -13,5 +13,4 @@
 <div class="button-row">
   {{ ui.btn("Pardon", "panel.pardon") }}
   {{ ui.btn("Add Time", "panel.add_time") }}
-  {{ ui.close_btn("Return to security") }}
 </div>

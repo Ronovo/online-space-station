@@ -1,0 +1,38 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Combustion Chamber") }}
+<fieldset class="group">
+  <legend>Chamber Gauge</legend>
+  <p class="result">{{ p.gauge }}</p>
+  <p class="center" style="color: {{ 'orange' if p.lit else 'lightgray' }}">{{ "Burning" if p.lit else "Not burning" }}</p>
+  <p class="center muted">Rated to {{ p.rated }} kPa.</p>
+</fieldset>
+<fieldset class="group">
+  <legend>Inlet</legend>
+  {% if p.inlet %}
+    <p>{{ p.inlet.label }}: {{ p.inlet.gauge }}</p>
+  {% else %}
+    <p>Nothing is connected. Connect a canister to the inlet at the Canister Rack.</p>
+  {% endif %}
+  <div class="slider-row">
+    <label for="inject-amount">Inject (mol)</label>
+    <input id="inject-amount" type="range" min="0" max="{{ p.max_amount }}" value="{{ p.amount }}" data-action="panel.set_amount">
+    <output for="inject-amount">{{ p.amount }}</output>
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Inject", "panel.inject") }}
+    {{ ui.btn("Igniter", "panel.ignite", cls="btn-primary") }}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>Pump Out</legend>
+  <div class="toggle-row">
+    {% for row in p.canisters %}
+      {{ ui.btn(row.label, "panel.pick_target", {"index": row.index}, "btn-toggle btn-small" ~ (" active" if p.target == row.index else "")) }}
+    {% endfor %}
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Pump Out", "panel.pump_out") }}
+    {{ ui.btn("Vent to Space", "panel.vent_chamber") }}
+  </div>
+</fieldset>
+{{ ui.feedback(p.feedback) }}

@@ -1,0 +1,75 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set s = facts.stores %}
+{% set k = facts.work %}
+{% block page %}
+<p>
+  The departments run on what the others make. Three stores sit between them, and each starts a shift with a little in
+  it.
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Store</th><th>Filled by</th><th>Used by</th><th>Starts with</th><th>Holds</th></tr></thead>
+  <tbody>
+    <tr><td>Ore</td><td>The Miner</td><td>The fabricator in {{ w.link("Engineering") }}</td>
+      <td>{{ s.STARTING_ORE }}</td><td>{{ s.MAX_ORE }}</td></tr>
+    <tr><td>Produce: {{ s.KITCHEN_PRODUCE.values()|join(", ") }}</td><td>The Botanist</td>
+      <td>The stove in the {{ w.link("Kitchen") }}</td><td>{{ s.STARTING_PRODUCE }} of each</td>
+      <td>{{ s.MAX_PRODUCE }} of each</td></tr>
+    <tr><td>Remedies</td><td>The Scientist in Chemistry</td><td>Every treatment in MedBay. See {{ w.link("Medical") }}</td>
+      <td>{{ s.STARTING_REMEDIES }}</td><td>{{ s.MAX_REMEDIES }}</td></tr>
+  </tbody>
+</table>
+
+<h2>When the crew hold the jobs</h2>
+<p>
+  A crew member at their post gets on with their work without being asked. Each rate below holds only while they are
+  at their post and able to work: it stops while they are away, jailed, too hurt, or their room has a hazard, except
+  the Engineer, who stays to fix it.
+</p>
+<ul>
+  <li>The Miner sends up {{ k.ORE_PER_TURN }} ore every {{ k.MINER_WORK_SECONDS }} seconds.</li>
+  <li>The Botanist sends the kitchen one piece of whatever it is shortest of every {{ k.BOTANIST_WORK_SECONDS }}
+    seconds. They also grow produce in the Botany planters as a player would: they plant, water and harvest every
+    turn, and the harvest goes to the kitchen. Visitors can see those plants in View Plants. When the Botanist is
+    away, they may page you to water a thirsty planter.</li>
+  <li>The Scientist posted in Chemistry sends MedBay a remedy every {{ k.CHEMISTRY_WORK_SECONDS // 60 }} minutes while
+    at their post.</li>
+  <li>The Chef cooks a dish every {{ k.CHEF_WORK_SECONDS // 60 }} minutes, using produce from the store, and the
+    Bartender mixes a drink every {{ k.BARTENDER_WORK_SECONDS // 60 }} minutes. Each keeps up to {{ k.MAX_READY }} of
+    a kind on the menu.</li>
+  <li>The Doctor treats one crew member who is too hurt to work every {{ k.DOCTOR_WORK_SECONDS }} seconds, which uses
+    a remedy.</li>
+  <li>The Engineer deals with one thing every {{ k.ENGINEER_WORK_SECONDS }} seconds: a hazard, then a faulted system,
+    then a solar array that is down, then life support a dead battery shut off, then the Combustion Engine: a cut
+    coolant line, an overheating engine to shut down, or a stopped one to light, then hallway lighting an antagonist
+    dimmed, which they restore and report to Security, then a nearly empty canister, which they send back down the
+    tube to Atmospherics. See {{ w.link("Engineering") }}.</li>
+  <li>The Scientist posted in the Research Lab works out one artifact from the bench every
+    {{ k.RESEARCH_WORK_SECONDS }} seconds.</li>
+  <li>The Scientist posted in Atmospherics looks after the station's air every {{ k.ATMOSPHERICS_WORK_SECONDS }}
+    seconds. See {{ w.link("Atmospherics") }}.</li>
+</ul>
+
+<h2>When you hold the job</h2>
+<p>
+  Nobody does your job for you. If you are the Miner and send up no ore, the fabricator runs dry. If you are the
+  Scientist posted to Chemistry and send no remedies, MedBay can't treat anyone, you included. A Scientist is posted
+  to one lab a shift, and only that lab's work is left to them: the Scientists in the other labs carry on.
+</p>
+<ul>
+  <li><b>Miner</b>: sell ore at the {{ w.link("Cargo") }} Bay's export counter.</li>
+  <li><b>Botanist</b>: <b>Send Produce to the Kitchen</b> at the Botany Station.</li>
+  <li><b>Scientist</b>: <b>Send Remedies to MedBay</b> at the Chemistry Station. Burn Salve, Antitoxin, Oxygen Tonic
+    and Healing Gel all count.</li>
+  <li>Anything for a store that you deliver to its room on a duty goes into the store as well.</li>
+</ul>
+
+<h2>When a post is empty</h2>
+<p>
+  A crew member who is jailed, too badly hurt to work, or away from their post does no work. If they are jailed or
+  hurt, the Captain covers their post from the Bridge, and failing that the Head of Personnel covers the rooms they
+  have access to. A hazard in a room stops its work whoever is covering, except in Engineering. See {{ w.link("Crew") }} and
+  {{ w.link("Hazards") }}.
+</p>
+<p>The Captain's {{ w.link("Station Status") }} shows what is in each store.</p>
+{% endblock %}

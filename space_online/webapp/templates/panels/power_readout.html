@@ -1,0 +1,15 @@
+{% import "game/_ui.html" as ui %}
+{% set power = p.power %}
+{{ ui.panel_header("Power Readout", "Back to PDA") }}
+<section class="eng-section">
+  {% include "panels/_power.html" %}
+  <p>Combustion Engine: +{{ "%.2f"|format(p.engine_output) }}% per minute</p>
+</section>
+<section class="eng-section">
+  <h3>HAZARDS</h3>
+  {% for hazard in p.hazards %}
+    <p style="color: #FF0000"><b>! {{ hazard }}</b></p>
+  {% else %}
+    <p style="color: #00FF00">No hazards reported.</p>
+  {% endfor %}
+</section>

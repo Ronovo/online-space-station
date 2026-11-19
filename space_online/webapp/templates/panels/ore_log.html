@@ -1,0 +1,12 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Ore Log", "Back to PDA") }}
+<p class="center">{{ p.found }} of {{ p.total }} identified this shift. Scan a vein you don't recognise to add it.</p>
+<div class="text-block" data-scroll-key="ore-log">
+  {% for ore in p.ores %}
+    {% if ore %}
+    <p class="note"><b>{{ ore.name }}</b><br>Exports for {{ ore.value }} credits. Found on {{ ore.planets }}.</p>
+    {% else %}
+    <p class="note muted">???</p>
+    {% endif %}
+  {% endfor %}
+</div>

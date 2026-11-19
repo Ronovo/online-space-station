@@ -1,16 +1,25 @@
 {% import "game/_ui.html" as ui %}
 <h1 class="screen-title">{{ s.name }}</h1>
 <p class="screen-desc">{{ s.description }}</p>
+{% if s.light %}<p class="screen-desc">{{ s.light }}</p>{% endif %}
 <p class="screen-coords">{{ s.coords }}</p>
-<div class="nav-grid">
-  {% for grid_row in s.grid %}
-    {% for cell in grid_row %}
-    <div class="nav-cell">{% if cell %}{{ ui.btn(cell.label, cell.action, cell.args, "btn-wide") }}{% endif %}</div>
+<div class="screen-bottom">
+  {{ ui.floor(view.floor) }}
+  <div class="nav-grid">
+    {% for grid_row in s.grid %}
+      {% for cell in grid_row %}
+      <div class="nav-cell">{% if cell %}{{ ui.btn(cell.label, cell.action, cell.args, "btn-wide") }}{% endif %}</div>
+      {% endfor %}
     {% endfor %}
-  {% endfor %}
-</div>
-<div class="stack">
-  {{ ui.btn("Character Sheet", "game.character_sheet", cls="btn-wide") }}
-  {{ ui.btn("Hands", "game.hands", cls="btn-wide") }}
-  {{ ui.btn("Save and Exit", "game.save_and_exit", cls="btn-wide") }}
+  </div>
+  <div class="stack system-menu">
+    <div class="button-row">
+      {{ ui.btn("Character Sheet", "game.character_sheet", cls="btn-wide") }}
+      {{ ui.btn(view.duties, "game.duties", cls="btn-wide") }}
+    </div>
+    <div class="button-row">
+      {{ ui.btn("Hands", "game.hands", cls="btn-wide") }}
+      {% if view.pda %}{{ ui.btn(view.pda, "game.pda", cls="btn-wide") }}{% endif %}
+    </div>
+  </div>
 </div>

@@ -1,0 +1,52 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Service Window") }}
+<p class="center">The window between the {{ p.here.place }} and the {{ p.there.place }}. Each side passes its own ingredients through for the other to use.</p>
+<div class="two-columns">
+  <div>
+    <div class="toggle-row">
+      {% for key, label in p.modes %}
+        {{ ui.btn(label, "panel.mode", {"name": key}, "btn-toggle btn-small" ~ (" active" if p.mode == key else "")) }}
+      {% endfor %}
+    </div>
+    <fieldset class="group">
+      <legend>{{ "Your Ingredients" if p.mode == "pass" else "The " ~ p.there.job ~ "'s Ingredients" }}</legend>
+      <div class="listbox" data-scroll-key="window-ingredients">
+        {% for name in p.ingredients %}
+          {{ ui.row(name, "panel.select", {"name": name}, name == p.selected) }}
+        {% endfor %}
+      </div>
+    </fieldset>
+    <form class="search-row">
+      <label for="window-amount">Amount:</label>
+      <input id="window-amount" name="amount" type="number" min="1" max="{{ p.max }}" step="1" value="1">
+      {{ ui.btn("Put on the Window" if p.mode == "pass" else "Ask the " ~ p.there.job, "panel.confirm", cls="btn-primary") }}
+    </form>
+  </div>
+  <div>
+    <fieldset class="group">
+      <legend>On the Window for You</legend>
+      {% for name, count in p.waiting %}
+        <div class="list-item">{{ name }} x {{ count }}</div>
+      {% else %}
+        <div class="list-empty">Nothing is waiting for you.</div>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="group">
+      <legend>The {{ p.there.job }} Is Asking For</legend>
+      {% for name, count in p.requests %}
+        <div class="list-item">{{ name }} x {{ count }}</div>
+      {% else %}
+        <div class="list-empty">No requests.</div>
+      {% endfor %}
+    </fieldset>
+    <fieldset class="group">
+      <legend>On the Window for the {{ p.there.place|title }}</legend>
+      {% for name, count in p.sent %}
+        <div class="list-item">{{ name }} x {{ count }}</div>
+      {% else %}
+        <div class="list-empty">Nothing yet.</div>
+      {% endfor %}
+    </fieldset>
+  </div>
+</div>
+{{ ui.feedback(p.feedback) }}

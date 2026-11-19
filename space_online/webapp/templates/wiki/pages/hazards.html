@@ -1,0 +1,67 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set h = facts.hazards %}
+{% block page %}
+<p>
+  Every {{ h.HAZARD_INTERVAL_RANGE[0] // 60 }} to {{ h.HAZARD_INTERVAL_RANGE[1] // 60 }} minutes something goes wrong in
+  one room of the station. Your Quarters and Departures are never hit.
+</p>
+
+<h2>The three hazards</h2>
+<table class="wiki-table">
+  <thead><tr><th>Hazard</th><th>Fixed with</th><th>What it hurts</th></tr></thead>
+  <tbody>
+    {% for name, tool, hurts in facts.hazard_rows %}
+    <tr><td>{{ name }}</td><td>{{ tool }}</td><td>{{ hurts }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>Hallway accidents</h2>
+<p>
+  Walking the hallways, each step has a {{ (facts.events.HALLWAY_EVENT_CHANCE * 100)|round|int }}% chance of an event,
+  and one in {{ facts.events.EVENT_CATEGORIES|length }} of those is an accident. Nothing fixes these: they happen and
+  are over.
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Accident</th><th>What it does</th></tr></thead>
+  <tbody>
+    {% for name, hurts in facts.accidents %}
+    <tr><td>{{ name }}</td><td>{{ hurts }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2>What a hazard does</h2>
+<ul>
+  <li>It is announced in the station log, as long as the Communication Array is up, and shows in
+    {{ w.link("Station Status") }} either way.</li>
+  <li>You are warned as you walk in. Every {{ h.HAZARD_HURT_SECONDS }} seconds you stay, it does {{ h.HAZARD_DAMAGE }}%
+    damage. A hazard on its own never takes oxygen or burn damage past {{ h.HAZARD_DAMAGE_CAP }}%.</li>
+  <li>The room's crew clear out, so nobody serves you there and the room's work stops until it is fixed. See
+    {{ w.link("Station Stores") }}.</li>
+</ul>
+
+<h2>Hazards and the air</h2>
+<p>The station shares one air, so a hazard in one room reaches everyone. See {{ w.link("Life Support") }}.</p>
+<ul>
+  <li>A <b>hull breach</b> vents {{ (facts.air.BREACH_VENT_SHARE * 100)|round|int }}% of the station's air to space
+    every second. The pump replaces it from the reservoir, so an open breach drains the reservoir, and with life support
+    low the whole station thins out. Sealing it stops the loss.</li>
+  <li>A <b>fire</b> burns the station's Oxygen into Carbon Dioxide. While the air is Oxygen-rich, above
+    {{ facts.gases.OXYGEN_RICH }} kPa of Oxygen, it burns hotter and does {{ h.RICH_FIRE_DAMAGE }}% a hit.</li>
+  <li><b>Fuel in the air</b>: once the air holds {{ facts.air.FLASH_POINT }} kPa or more of Plasma or Hydrogen, a fire
+    or arcing wiring anywhere aboard sets it off. The air flashes into flame, everyone aboard takes
+    {{ facts.air.FLASH_BURN }}% burns, the fuel burns away, and a fire breaks out in a room.</li>
+</ul>
+
+<h2>Fixing one</h2>
+<ul>
+  <li>Stand in the room with the right tool, carried or held, and press the button at the top of its menu. Anyone can
+    do it.</li>
+  <li>A Wrench and Wirecutters come in the Basic Tools set in your locker. A set counts as long as the tool is still in
+    it. The Fire Extinguisher is made at the fabricator or bought at the {{ w.link("Cargo") }} Bay.</li>
+  <li>The Engineer crew member deals with one hazard at a time before anything else. If you are the Engineer, they are
+    yours. See {{ w.link("Engineer") }}.</li>
+</ul>
+{% endblock %}

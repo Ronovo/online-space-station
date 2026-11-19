@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Botany Vending Machine</h2>
+{{ ui.panel_header("Botany Vending Machine") }}
 <p class="center">This machine dispenses seeds, liquids, and tools for the botany lab.</p>
 <p class="center">Your credits: {{ p.credits }}</p>
 <div class="toggle-row center">
@@ -30,4 +30,3 @@
     </div>
   </fieldset>
 </div>
-<div class="button-row">{{ ui.close_btn() }}</div>

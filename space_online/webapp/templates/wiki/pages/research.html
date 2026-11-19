@@ -1,0 +1,107 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set r = facts.research %}
+{% set a = facts.artifacts %}
+{% block page %}
+<p>
+  The Research Lab is the south door of the Science Hall, across from {{ w.link("Atmospherics") }} and beside
+  {{ w.link("Chemistry") }}. It has two stations behind one
+  door: the Artifact Section, with a bench for working out alien artifacts, and the Teleporter Room. Scientists, the
+  Head of Personnel and the Captain can work both. See {{ w.link("Scientist") }}.
+</p>
+
+<h2>For visitors</h2>
+<ul>
+  <li><b>Leave an Artifact on the Bench</b>, if you carry one nobody has worked out: Central Command pays a finder's fee
+    (not to a Scientist) of {{ r.FINDERS_FEE }} credits. The bench holds {{ r.MAX_BENCH }}.</li>
+  <li><b>Talk to Scientist</b>, while the Scientist posted here is on duty.</li>
+</ul>
+
+<h2>Where artifacts come from</h2>
+<ul>
+  <li>A Miner searching a planet now and then digs one up, and it comes home with the ore. See {{ w.link("Mining") }}.</li>
+  <li>Central Command sends them up to the Scientist posted here to be worked out. See
+    {{ w.link("Scientist") }}.</li>
+</ul>
+
+<h2>The Artifact Bench</h2>
+<p>
+  In the Artifact Section. Every artifact is set
+  off by one of the four test rigs, at or above a strength only it knows:
+  {% for name in a.DEVICES.values() %}{{ name }}{{ ", " if not loop.last }}{% endfor %}.
+</p>
+<ol>
+  <li>Pick an artifact, a rig and a strength from 1 to {{ a.MAX_STRENGTH }}, and press <b>Run Test</b>.</li>
+  <li>The wrong rig does nothing. The right rig at too low a strength gives a faint hum, and a shudder once you are
+    within {{ a.CLOSE_MARGIN }} of what it needs.</li>
+  <li>At the right strength the artifact comes alive, and what it does then tells you what it is.</li>
+  <li>More than {{ a.OVERLOAD_MARGIN }} over what it needs overloads it, which throws you against the wall and costs a
+    limb {{ a.OVERLOAD_DAMAGE }}%. Work up from a low strength.</li>
+  <li><b>File Analysis</b> with what it is and what sets it off. If both are right, Central Command pays
+    {{ r.ANALYSIS_REWARD }} credits and the artifact is yours. If not, the form comes back saying which part is
+    wrong, and you can file again.</li>
+</ol>
+<table class="wiki-table">
+  <thead><tr><th>Artifact</th><th>When it comes alive</th><th>What it does once analysed</th></tr></thead>
+  <tbody>
+    {% for kind in a.ARTIFACT_KINDS.values() %}
+    <tr><td>{{ kind.name }}</td><td>{{ kind.shows }}</td><td>{{ kind.desc }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>
+  An analysed artifact is used from your inventory, or sold at the {{ w.link("Cargo") }} Bay's export counter for
+  {{ a.EXPORT_VALUE }} credits.
+</p>
+
+<h2>The Teleporter</h2>
+<p>
+  In the Teleporter Room. The teleporter sends you, or an item, to any tile of the station, locked doors or not. Its console does not take
+  station coordinates. It takes two numbers, X and Y, and where they come out is different every shift.
+</p>
+
+<h3>The formula</h3>
+<p>On each axis, the console number for a place is</p>
+<p class="center"><b>console = m &times; station + c</b></p>
+<ul>
+  <li><b>station</b> is the place's coordinate: North for X, East for Y. Every hallway screen shows its own, and the
+    teleporter panel lists every room's.</li>
+  <li><b>m</b> is a multiplier: {{ a.TELE_MULTIPLIERS|join(", ") }}.</li>
+  <li><b>c</b> is an offset, from {{ a.TELE_OFFSET_RANGE[0] }} to {{ a.TELE_OFFSET_RANGE[1] }}.</li>
+  <li>X and Y each have their own m and c, picked afresh every shift.</li>
+</ul>
+
+<h3>Working it out</h3>
+<p>
+  <b>Send Beacon</b> sends a test beacon to the numbers you typed. It reports the station coordinates it came out at,
+  even out in space, and comes straight back. Two sends are enough for both axes:
+</p>
+<ol>
+  <li>Send the beacon to console numbers <b>a1</b>, and note the coordinate it reports, <b>r1</b>.</li>
+  <li>Send it again to a different number <b>a2</b>, and note <b>r2</b>.</li>
+  <li><b>m = (a2 - a1) &divide; (r2 - r1)</b></li>
+  <li><b>c = a1 - m &times; r1</b></li>
+</ol>
+<p>Do that once with the X numbers and the North readings, and once with the Y numbers and the East readings.</p>
+
+<h3>A worked example</h3>
+<p>
+  You send the beacon to X 10, Y 10 and it reports 3.5 North, 2.75 East. You send it to X 20, Y 30 and it reports
+  8.5 North, 7.75 East.
+</p>
+<ul>
+  <li>X: m = (20 - 10) &divide; (8.5 - 3.5) = 2, and c = 10 - 2 &times; 3.5 = 3.</li>
+  <li>Y: m = (30 - 10) &divide; (7.75 - 2.75) = 4, and c = 10 - 4 &times; 2.75 = -1.</li>
+  <li>To reach the Security Office at 6 North, 6 East: X = 2 &times; 6 + 3 = 15 and Y = 4 &times; 6 - 1 = 23.</li>
+</ul>
+
+<h3>The console</h3>
+<ul>
+  <li><b>Scan</b>: says whether there is floor at those numbers. Numbers that come out between tiles, or off the
+    station, have none.</li>
+  <li><b>Send Beacon</b>: reports where the numbers come out, as above.</li>
+  <li><b>Send Me</b>: puts you there. It only fires at a tile with floor.</li>
+  <li><b>Send Item</b>: sends one of the item you chose. It lies on the floor there until someone picks it up.</li>
+  <li><b>Receive</b>: brings back everything lying on the floor there.</li>
+</ul>
+{% endblock %}

@@ -1,0 +1,11 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Incident Log") }}
+<p class="center">Whoever was away from their post for every incident is worth a warrant.</p>
+<div class="text-block" data-scroll-key="incidents">
+  {% for incident in p.incidents %}
+    <p class="note"><span class="note-time">{{ incident.time }}, {{ incident.where }}</span><br>{{ incident.what }}{% if incident.away is not none %}<br>
+      <span class="italic">Away from their posts: {{ incident.away }}</span>{% endif %}</p>
+  {% else %}
+    <p>No incidents have been reported this shift.</p>
+  {% endfor %}
+</div>

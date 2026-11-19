@@ -1,6 +1,13 @@
 import pytest
 
+from space_online.game.helper_methods import game_clock
 from space_online.webapp import create_app
+
+
+@pytest.fixture(autouse=True)
+def uncapped_clock(monkeypatch):
+    """Tests pass time by backdating the clock, so a tick here takes however long they say."""
+    monkeypatch.setattr(game_clock, "MAX_TICK_SECONDS", float("inf"))
 
 
 @pytest.fixture

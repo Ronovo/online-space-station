@@ -1,3 +1,5 @@
+import random
+
 from space_online.game.helper_methods.game_clock import format_elapsed, get_elapsed_seconds
 from space_online.game.helper_methods.ui_panels import choice_handler, panel_action, register_panel
 from space_online.game.maps.donut import BOTANY_KEY
@@ -6,6 +8,7 @@ from space_online.game.objects.botany_items import (
     BOTANY_SEED_IDS,
     BOTANY_VEND_CATALOG,
     GROWTH_STAGES,
+    MUTATION_CHANCE,
     PLANTERS_PER_ROW,
     PLANTER_ROWS,
     PLENTIFUL_HARVEST_YIELD_MULTIPLIER,
@@ -14,11 +17,15 @@ from space_online.game.objects.botany_items import (
     empty_planter,
     growth_seconds_to_next_stage,
     growth_stage_label,
+    planted_from_seed,
     refresh_planter_growth,
     restock_vending,
 )
+from space_online.game.objects.food import MUTANT_OF
 from space_online.game.objects.items import (
     HAND_SIDES,
+    NO_SCANNER,
+    PDA_ID,
     add_to_inventory,
     format_inventory_label,
     get_item_definition,
@@ -28,7 +35,10 @@ from space_online.game.special_rooms.shared import (
     available_npc,
     button,
     npc_contact_widgets,
+    register_stand,
     room_action,
+    sell_item,
+    send_produce_to_kitchen,
     text_line,
 )
 
@@ -55,13 +65,14 @@ class Botany(SpecialRoomBase):
     )
     DOOR_KEY = BOTANY_KEY
     STATION_ENTRIES = ({"label": "Enter Botany Station", "mode": "botany_station"},)
-    CONTACT_JOBS = ("Botanist",)
+    CONTACT_POSTS = {"Botanist": DOOR_KEY}
 
     def room_options(self):
         widgets = [button("View Plants", "room.view_plants")]
         widgets += npc_contact_widgets(
             self.game,
             "Botanist",
+            self.DOOR_KEY,
             talk_label="Talk to Botanist",
             talk_action="talk_to_botanist",
             absent_flavor="The botanist is away from the lab.",
@@ -75,17 +86,19 @@ class Botany(SpecialRoomBase):
             text_line("Botany Station Controls", style="title"),
             button("Botany Vending Machine", "room.access_botany_vending"),
             button("View Plants", "room.view_plants_station"),
+            button("Send Produce to the Kitchen", "room.send_produce"),
             button("Back to Station Menu", "room.set_mode", mode="menu"),
         ]
 
     @room_action
     def talk_to_botanist(self):
-        if available_npc(self.game, "Botanist"):
+        if available_npc(self.game, "Botanist", self.DOOR_KEY):
             self.game.open_panel("botany_stand")
 
     @room_action
     def view_plants(self):
-        self.game.open_panel("planter_rows", allow_harvest=False)
+        """The planters, worked as at the station by anyone allowed to work it."""
+        self.game.open_panel("planter_rows", allow_harvest=self.station_allowed("botany_station"))
 
     @room_action(station="botany_station")
     def view_plants_station(self):
@@ -94,6 +107,10 @@ class Botany(SpecialRoomBase):
     @room_action(station="botany_station")
     def access_botany_vending(self):
         self.game.open_panel("botany_vending")
+
+    @room_action(station="botany_station")
+    def send_produce(self):
+        send_produce_to_kitchen(self.game)
 
 
 @register_panel("planter_rows", "View Plants")
@@ -154,6 +171,18 @@ def _planter_card(planter, index, elapsed_seconds, allow_harvest):
         )
         card.update(time=f"Next stage in {format_elapsed(next_in)}", time_color="cyan")
     return card
+
+
+def _planter_reading(planter, index, elapsed_seconds):
+    """What a Botanist's PDA reads off a planter."""
+    if not planter["occupied"]:
+        return "Empty. Ready for seeds."
+    card = _planter_card(planter, index, elapsed_seconds, False)
+    facts = [planter["plant"], card["stage"], card["time"], *(label for label, _ in card["buffs"])]
+    if not planter["dead"]:
+        facts.append(f"Yield: {max(1, int(planter.get('yield_multiplier') or 1))}")
+        facts.append(f"Mutation chance: {MUTATION_CHANCE:.0%}" if planter["ooze_applied"] else "No mutation chance")
+    return ". ".join(fact.rstrip(".") for fact in facts) + "."
 
 
 @register_panel("planter_row", "Viewing Plants")
@@ -218,21 +247,16 @@ def harvest(game, state, args):
         game.alert("Not Ready", f"Planter {planter_index + 1} is not ready to harvest yet.")
         return
 
-    produces_id = planter.get("produces")
-
-    produce = get_item_definition(produces_id) if produces_id else None
-    if not produce:  # pragma: no cover - every seed produces a known item
-        game.alert("Harvest Failed", "Could not resolve the produce for this plant.", kind="error")
-        return
-
+    mutated = planter["ooze_applied"] and random.random() < MUTATION_CHANCE
+    produce = get_item_definition(MUTANT_OF[planter["produces"]] if mutated else planter["produces"])
     yield_multiplier = max(1, int(planter.get("yield_multiplier") or 1))
     produce["quantity"] = yield_multiplier
     add_to_inventory(game.player_data, produce)
-    plant_name = planter.get("plant") or produce.get("name", "produce")
     game.player_data["botany"]["planters"][planter_index] = empty_planter()
-    game.add_note(
-        f"Harvested {yield_multiplier}x {produce.get('name', plant_name)} from planter {planter_index + 1}."
-    )
+    harvested = f"{yield_multiplier}x {produce['name']} from planter {planter_index + 1}"
+    game.add_note(f"Harvested {harvested}.")
+    if mutated:
+        game.alert("Mutation", f"The ooze has changed the plant. You harvest {harvested}.")
 
 
 @panel_action("planter_row")
@@ -256,6 +280,13 @@ def use_hand(game, state, args):
     item_id = item.get("id")
     item_name = item.get("name", "item")
 
+    if item_id == PDA_ID:
+        reading = NO_SCANNER
+        if game.player_data["job"] == "Botanist":
+            reading = _planter_reading(planter, planter_index, get_elapsed_seconds(game.player_data))
+        game.alert(f"PDA Scan: Planter {planter_index + 1}", reading)
+        return
+
     if item_id in BOTANY_SEED_IDS:
         if planter.get("occupied"):
             game.alert(
@@ -264,17 +295,7 @@ def use_hand(game, state, args):
             )
             return
 
-        attrs = item.get("attributes") or {}
-        planters[planter_index] = {
-            **empty_planter(),
-            "occupied": True,
-            "plant": attrs.get("plant_name") or item_name,
-            "seed_id": item_id,
-            "produces": attrs.get("produces"),
-            "growth_class": attrs.get("growth_class") or "crop",
-            "planted_at_seconds": get_elapsed_seconds(game.player_data),
-            "growth_stage": 1,
-        }
+        planters[planter_index] = planted_from_seed(item, get_elapsed_seconds(game.player_data))
         hands[hand_side] = None
         game.add_note(f"Planted {item_name} in planter {planter_index + 1} using your {hand_side} hand.")
         return
@@ -313,7 +334,7 @@ def use_hand(game, state, args):
         else:
             planter["ooze_applied"] = True
             game.add_note(f'Applied "The Ooze" Mutagen to planter {planter_index + 1}.')
-            game.alert("Mutation", "The Plant does not mutate.")
+            game.alert("Mutation", "The ooze soaks into the roots. This plant's harvest may come out changed.")
         hands[hand_side] = None
         return
 
@@ -347,6 +368,8 @@ def _wasted_on(planter, item_id, growth_stage):
         return "Fully Grown", "This plant is already fully grown."
     if item_id == "plentiful_harvest" and int(planter.get("yield_multiplier") or 1) > 1:
         return "Already Applied", "This plant already has Plentiful Harvest."
+    if item_id == "the_ooze_mutagen" and planter["ooze_applied"]:
+        return "Already Applied", "This plant has already soaked up The Ooze."
     return None
 
 
@@ -367,28 +390,17 @@ def announce_planter_changes(game):
     elapsed_seconds = get_elapsed_seconds(game.player_data)
     for index, planter in enumerate(game.player_data["botany"]["planters"]):
         growth_stage = refresh_planter_growth(planter, elapsed_seconds)
-        if not planter["occupied"] or planter["announced"]:
+        if not planter["occupied"] or planter["announced"] or planter["tended_by"]:
             continue
         where = f"The {planter['plant']} in planter {index + 1}"
         if planter["dead"]:
             planter["announced"] = "dead"
-            game.report("Plant Died", f"{where} died for lack of water.", kind="warning")
+            game.alert("Plant Died", f"{where} died for lack of water.", kind="warning")
             game.add_note(f"{where} died for lack of water.")
         elif growth_stage >= GROWTH_STAGES:
             planter["announced"] = "mature"
+            game.alert("Plant Ready", f"{where} is ready to harvest.")
             game.add_note(f"{where} is ready to harvest.")
-
-
-def _sell(game, item_id, price, seller):
-    """Charge price and put item_id in the inventory. Returns False when the player can't afford it."""
-    item = get_item_definition(item_id)
-    if game.player_data["credits"] < price:
-        game.alert("Insufficient Credits", f"You don't have enough credits to buy {item['name']}.")
-        return False
-    game.player_data["credits"] -= price
-    add_to_inventory(game.player_data, item)
-    game.add_note(f"Bought {item['name']} from {seller} for {price} credits.")
-    return True
 
 
 def _vending_stock(game):
@@ -402,8 +414,6 @@ def botany_vending_panel(game, state):
     available = []
     for item_id, (price, _) in BOTANY_VEND_CATALOG.items():
         item = get_item_definition(item_id)
-        if not item:  # pragma: no cover - every vended id is in the item data
-            continue
         vend_kinds = (item.get("attributes") or {}).get("vend_kinds") or []
         if kind == "all" or kind in vend_kinds:
             available.append({"id": item_id, "name": item["name"], "price": price, "stock": stock[item_id]})
@@ -439,23 +449,9 @@ def buy_vending_item(game, state, args):
             f"It restocks one every {VEND_RESTOCK_SECONDS // 60} minutes.",
         )
         return
-    if _sell(game, item_id, BOTANY_VEND_CATALOG[item_id][0], "the botany vending machine"):
+    if sell_item(game, item_id, BOTANY_VEND_CATALOG[item_id][0], "the botany vending machine"):
         stock[item_id] -= 1
 
 
-@register_panel("botany_stand", "Produce Stand")
-def botany_stand_panel(game, state):
-    return {
-        "credits": game.player_data["credits"],
-        "produce": [
-            {"id": item_id, "name": get_item_definition(item_id)["name"], "price": price}
-            for item_id, price in BOTANIST_STAND_PRICES.items()
-        ],
-    }
-
-
-@panel_action("botany_stand", "buy")
-def buy_produce(game, state, args):
-    item_id = args["item_id"]
-    if item_id in BOTANIST_STAND_PRICES:
-        _sell(game, item_id, BOTANIST_STAND_PRICES[item_id], "the Botanist")
+register_stand("botany_stand", "Produce Stand", "The botanist sells fresh produce from the lab.",
+               BOTANIST_STAND_PRICES, "the Botanist")

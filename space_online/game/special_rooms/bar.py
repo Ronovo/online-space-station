@@ -1,19 +1,22 @@
 import random
 
-from space_online.game.objects.drinks import DRINKS_MENU, MIXED_DRINKS, is_drink_alcoholic
-from space_online.game.helper_methods.errands import finish_errand, pending_errand
-from space_online.game.objects.items import add_to_inventory
-from space_online.game.special_rooms.shared import (
-    SpecialRoomBase,
-    available_npc,
-    button,
-    npc_contact_widgets,
-    room_action,
-)
-from space_online.game.helper_methods.ui_panels import panel_action, register_panel
+from space_online.game.helper_methods.mixing import MixingStation, register_mixing_station
 from space_online.game.maps.donut import BAR_KEY
-
-DRINK_MENU_CATEGORIES = ("All Drinks", "Basic Drinks", "Mixed Drinks", "Alcoholic", "Non-Alcoholic")
+from space_online.game.objects.drinks import (
+    AVAILABLE_INGREDIENTS,
+    DRINKS_MENU,
+    MAX_GLASS_POURS,
+    MIXED_DRINKS,
+    drink_item,
+    is_drink_alcoholic,
+    mix_drink,
+    mixer_shelf,
+)
+from space_online.game.objects.items import item_scanner
+from space_online.game.special_rooms.service import ServiceCounter, ServiceRoom, register_service_menu
+from space_online.game.helper_methods.window_stock import window_supply
+from space_online.game.special_rooms.service_window import register_window_side
+from space_online.game.special_rooms.shared import button, room_action
 
 CONVERSATIONS = [
     "You chat with a group of engineers about the latest station upgrades.",
@@ -25,86 +28,18 @@ CONVERSATIONS = [
 ]
 
 
-class Bar(SpecialRoomBase):
-    ROOM_TITLE = "Bar"
-    ROOM_HEADING = "Station Bar"
-    ROOM_DESCRIPTION = (
-        "The station's bar is lively and well-furnished. A long counter runs along one wall, "
-        "with shelves of drinks behind it. Tables and chairs are scattered about, and soft music "
-        "plays in the background."
-    )
-    DOOR_KEY = BAR_KEY
-    STATION_ENTRIES = ({"label": "Enter Bartender Station", "mode": "bartender"},)
-    CONTACT_JOBS = ("Bartender",)
-
-    def room_options(self):
-        widgets = npc_contact_widgets(
-            self.game,
-            "Bartender",
-            talk_label="Order Drinks",
-            talk_action="show_drink_menu",
-            absent_flavor="The bartender is away from the bar.",
-        )
-        widgets.append(button("Socialize", "room.socialize"))
-        return widgets + self.back_to_station_menu()
-
-    def mode_buttons(self, mode):
-        if mode != "bartender" or not self.station_allowed(mode):
-            return None
-        widgets = [
-            button("Mix Drinks", "room.show_drink_mixer"),
-            button("View Recipes", "room.show_recipes"),
-            button("Serve Regular Drinks", "room.show_drink_menu"),
-        ]
-        errand = pending_errand(self.player_data)
-        if errand and errand["kind"] == "serve":
-            widgets.append(button(f"Serve {errand['item']} to {errand['patron']}", "room.serve_order"))
-        return widgets + [button("Back to Station Menu", "room.set_mode", mode="menu")]
-
-    @room_action
-    def show_drink_menu(self):
-        """Order from the menu (bartender NPC present) or serve it (bartender station)."""
-        if available_npc(self.game, "Bartender") or self.station_allowed("bartender"):
-            self.game.open_panel("drink_menu")
-
-    @room_action(station="bartender")
-    def serve_order(self):
-        """Serve the drink order errand from the mixed-drink stock, for the drink's price."""
-        errand = pending_errand(self.player_data)
-        if not errand or errand["kind"] != "serve":
-            return
-        drink, patron, reward = errand["item"], errand["patron"], errand["reward"]
-        stock = self.player_data["bar_mixed_stock"]
-        if stock.get(drink, 0) <= 0:
-            self.game.alert("Not in Stock", f"There's no {drink} ready. Mix one first.")
-            return
-        stock[drink] -= 1
-        if stock[drink] <= 0:
-            del stock[drink]
-        finish_errand(self.game, f"Served a {drink} to {patron} for {reward} credits.",
-                      f"You serve {patron} a {drink}. They pay you {reward} credits.", reward)
-
-    @room_action
-    def socialize(self):
-        self.game.alert("Socializing", random.choice(CONVERSATIONS))
-
-    @room_action(station="bartender")
-    def show_drink_mixer(self):
-        self.game.open_panel("mixer")
-
-    @room_action(station="bartender")
-    def show_recipes(self):
-        self.game.open_panel("recipes")
+@item_scanner("Bartender")
+def drink_reading(item):
+    """What a drink is mixed from. The things it is mixed from read as themselves."""
+    if item.get("category") != "Drink":
+        return "Not a drink."
+    recipe = MIXED_DRINKS.get(item["name"])
+    if recipe is None:
+        return f"Plain {item['name']}. Nothing is mixed into it."
+    return f"Mixed from {', '.join(recipe['ingredients'])}."
 
 
-def _drink_categories(player_data):
-    stock = player_data["bar_mixed_stock"]
-    basic_drinks = dict(DRINKS_MENU)
-    mixed_drinks = {
-        name: MIXED_DRINKS[name]
-        for name, qty in stock.items()
-        if qty > 0 and name in MIXED_DRINKS
-    }
+def _drink_categories(basic_drinks, mixed_drinks):
     all_drinks = {**basic_drinks, **mixed_drinks}
     return {
         "All Drinks": all_drinks,
@@ -115,109 +50,68 @@ def _drink_categories(player_data):
     }
 
 
-def _on_the_house(player_data):
-    """Bartenders drink free at their own bar."""
-    return player_data["job"] == "Bartender"
+BAR_COUNTER = register_service_menu(ServiceCounter(
+    job="Bartender",
+    room=BAR_KEY,
+    place="bar",
+    noun="drink",
+    menu_panel="drink_menu",
+    menu_title="Drink Menu",
+    stock_key="bar_mixed_stock",
+    basics=DRINKS_MENU,
+    made=MIXED_DRINKS,
+    categories=_drink_categories,
+    make_verb="Mix",
+    pour="pour",
+    poured="Poured",
+    build_item=drink_item,
+))
+
+MIXER = register_mixing_station(MixingStation(
+    panel="mixer",
+    title="Bartender's Drink Mixer",
+    name="Mixer",
+    container="glass",
+    container_label="Mixing Glass",
+    mix_label="Mix Drink",
+    idle_text="Mix ingredients to create a drink",
+    capacity=MAX_GLASS_POURS,
+    shelf=mixer_shelf,
+    mix=mix_drink,
+    supplies=(window_supply("bar"),),
+    book="recipes",
+))
+
+register_window_side(
+    "bar",
+    job="Bartender",
+    place="bar",
+    gives=sorted(set(DRINKS_MENU) | set(AVAILABLE_INGREDIENTS)),
+    wants=("Celery", "Sugar", "Salt", "Herbs"),
+)
 
 
-def _price_text(player_data, details):
-    return "free" if _on_the_house(player_data) else f"{details['price']} credits"
-
-
-def _current_drinks(game, state):
-    category = state.get("category", "All Drinks")
-    return _drink_categories(game.player_data).get(category, {})
-
-
-@register_panel("drink_menu", "Drink Menu")
-def drink_menu_panel(game, state):
-    stock = game.player_data["bar_mixed_stock"]
-    drinks = _current_drinks(game, state)
-    rows = []
-    for drink, details in drinks.items():
-        price = _price_text(game.player_data, details)
-        if drink in MIXED_DRINKS:
-            label = f"{drink} (Qty: {stock.get(drink, 0)}) - {price}"
-        else:
-            label = f"{drink} - {price}"
-        rows.append({"name": drink, "label": label})
-
-    selected = state.get("selected")
-    if selected not in drinks:
-        selected = None
-    return {
-        "credits": game.player_data["credits"],
-        "categories": DRINK_MENU_CATEGORIES,
-        "category": state.get("category", "All Drinks"),
-        "drinks": rows,
-        "selected": selected,
-        "description": drinks[selected]["desc"] if selected else "Select a drink to see its description",
-    }
-
-
-@panel_action("drink_menu", "category")
-def drink_menu_category(game, state, args):
-    if args["name"] in DRINK_MENU_CATEGORIES:
-        state["category"] = args["name"]
-        state.pop("selected", None)
-
-
-@panel_action("drink_menu", "select")
-def drink_menu_select(game, state, args):
-    if args["name"] in _current_drinks(game, state):
-        state["selected"] = args["name"]
-
-
-@panel_action("drink_menu")
-def order(game, state, args):
-    player_data = game.player_data
-    drink_name = state.get("selected")
-    drink_details = _current_drinks(game, state).get(drink_name)
-    if not drink_details:
-        game.alert("Selection Needed", "Please select a drink first")
-        return
-
-    stock = player_data["bar_mixed_stock"]
-    if drink_name in MIXED_DRINKS and stock.get(drink_name, 0) <= 0:  # pragma: no cover - a mixed drink with no stock isn't on the menu
-        game.alert(
-            "Out of Stock",
-            f"{drink_name} is not available. Mix one at the bartender station first.",
-        )
-        return
-
-    price = 0 if _on_the_house(player_data) else drink_details["price"]
-    if player_data["credits"] < price:
-        game.alert("Insufficient Credits", f"You don't have enough credits to order {drink_name}.")
-        return
-
-    if drink_name in MIXED_DRINKS:
-        stock[drink_name] -= 1
-        if stock[drink_name] <= 0:
-            del stock[drink_name]
-            state.pop("selected", None)
-
-    player_data["credits"] -= price
-
-    alcoholic = is_drink_alcoholic(drink_name, drink_details)
-    add_to_inventory(player_data, {
-        "id": f"drink_{drink_name.lower().replace(' ', '_')}",
-        "name": drink_name,
-        "description": drink_details["desc"],
-        "category": "Drink",
-        "attributes": {
-            "alcoholic": alcoholic,
-            "alcohol_content": drink_details.get("alcohol_content", 0),
-        },
-        "actions": ["examine", "drink", "drop"],
-    })
-
-    if not price:
-        game.add_note(f"Poured a {drink_name} on the house. Added to inventory.")
-        game.alert("Order Successful", f"You pour yourself a {drink_name} on the house. "
-                                       f"It has been added to your inventory.")
-        return
-    game.add_note(f"Purchased {drink_name} at the bar for {price} credits. Added to inventory.")
-    game.alert(
-        "Order Successful",
-        f"You've ordered a {drink_name} for {price} credits. It has been added to your inventory.",
+class Bar(ServiceRoom):
+    ROOM_TITLE = "Bar"
+    ROOM_HEADING = "Station Bar"
+    ROOM_DESCRIPTION = (
+        "The station's bar is lively and well-furnished. A long counter runs along one wall, "
+        "with shelves of drinks behind it. Tables and chairs are scattered about, and soft music "
+        "plays in the background. A service window opens onto the kitchen next door."
     )
+    DOOR_KEY = BAR_KEY
+    STATION_ENTRIES = ({"label": "Enter Bartender Station", "mode": ServiceRoom.STATION_MODE},)
+    CONTACT_POSTS = {"Bartender": DOOR_KEY}
+    COUNTER = BAR_COUNTER
+    STATION = MIXER
+    WINDOW_SIDE = "bar"
+    ORDER_LABEL = "Order Drinks"
+    MAKE_LABEL = "Mix Drinks"
+    SERVE_LABEL = "Serve Regular Drinks"
+
+    def extra_options(self):
+        return [button("Socialize", "room.socialize")]
+
+    @room_action
+    def socialize(self):
+        self.game.alert("Socializing", random.choice(CONVERSATIONS))

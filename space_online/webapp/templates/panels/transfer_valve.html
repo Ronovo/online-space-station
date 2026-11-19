@@ -1,0 +1,29 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Tank Transfer Valve") }}
+<fieldset class="group">
+  <legend>Gas Tanks You Carry</legend>
+  <p class="center muted">Pick two to fit to the valve.</p>
+  <div class="listbox short" data-scroll-key="valve-tanks">
+    {% for tank in p.tanks %}
+      {{ ui.row(tank.label, "panel.pick_tank", {"index": tank.index}, tank.index in p.picked) }}
+    {% else %}
+      <div class="list-item">You carry no Gas Tank. The tank rack in Atmospherics hands out empty ones.</div>
+    {% endfor %}
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Assemble", "panel.assemble", cls="btn-primary", disabled=not p.can_assemble) }}
+  </div>
+  {% if not p.has_valve %}<p class="center muted">You carry no Tank Transfer Valve.</p>{% endif %}
+</fieldset>
+<fieldset class="group">
+  <legend>Bombs You Carry</legend>
+  {% for bomb in p.bombs %}
+    <div class="hand-row">
+      <span>{{ bomb.label }}{{ " (armed)" if bomb.armed }}</span>
+      {{ ui.btn("Take Apart", "panel.take_apart", {"index": bomb.index}, "btn-small", disabled=bomb.armed) }}
+    </div>
+  {% else %}
+    <p>None.</p>
+  {% endfor %}
+</fieldset>
+{{ ui.feedback(p.feedback) }}

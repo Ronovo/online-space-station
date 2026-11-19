@@ -1,9 +1,21 @@
 {% import "game/_ui.html" as ui %}
 <h1 class="screen-title">{{ s.heading }}</h1>
 <p class="screen-desc">{{ s.description }}</p>
+{% if s.light %}<p class="screen-desc">{{ s.light }}</p>{% endif %}
+{% if s.hazard %}<p class="screen-desc">{{ s.hazard }}</p>{% endif %}
 <div class="stack room-menu">{{ ui.widgets(s.buttons) }}</div>
-<div class="stack">
-  {{ ui.btn("Character Sheet", "game.character_sheet", cls="btn-wide") }}
-  {{ ui.btn("Hands", "game.hands", cls="btn-wide") }}
-  {{ ui.btn("Exit Room", "room.exit", cls="btn-wide exit-room") }}
+{% set exit_room = ui.btn("Exit Room", "room.exit", cls="btn-wide exit-room") %}
+<div class="screen-bottom">
+  {{ ui.floor(view.floor) }}
+  <div class="stack system-menu">
+    <div class="button-row">
+      {{ ui.btn("Character Sheet", "game.character_sheet", cls="btn-wide") }}
+      {{ ui.btn(view.duties, "game.duties", cls="btn-wide") }}
+      {% if view.pda %}{{ exit_room }}{% endif %}
+    </div>
+    <div class="button-row">
+      {{ ui.btn("Hands", "game.hands", cls="btn-wide") }}
+      {% if view.pda %}{{ ui.btn(view.pda, "game.pda", cls="btn-wide") }}{% else %}{{ exit_room }}{% endif %}
+    </div>
+  </div>
 </div>

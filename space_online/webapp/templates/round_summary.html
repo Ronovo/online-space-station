@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Shift Report - Space Station Explorer{% endblock %}
+{% block content %}
+<section class="card lobby-card">
+  <h1>Shift Report</h1>
+  <p class="summary-verdict {{ 'summary-survived' if summary.survived else 'summary-died' }}">
+    {{ "You made it." if summary.survived else "You did not make it." }}
+  </p>
+  <div class="character-summary">
+    <div><span class="label">Character</span> {{ summary.name }}, {{ summary.job }}
+      {%- if summary.ended_as %} (ended the shift as {{ summary.ended_as }}){% endif %}</div>
+    <div><span class="label">Mode</span> {{ summary.mode|title }}</div>
+    <div><span class="label">Shift</span> {{ summary.minutes }} minutes</div>
+    <div><span class="label">Outcome</span> {{ summary.cause[0]|upper }}{{ summary.cause[1:] }}</div>
+    <div><span class="label">Duties</span> {{ summary.duties_done }} done, {{ summary.duties_missed }} missed</div>
+    {% if summary.mode == "career" %}
+    <div><span class="label">Salary</span> {{ summary.salary }} credits</div>
+    {% endif %}
+    {% if summary.shares %}
+    <div><span class="label">Shares</span> cashed out for {{ "%.2f"|format(summary.shares) }} credits</div>
+    {% endif %}
+    {% if summary.revive_cost %}
+    <div><span class="label">Revived</span> for {{ summary.revive_cost }} credits</div>
+    {% endif %}
+    <div><span class="label">Credits</span> {{ "%.2f"|format(summary.credits) }}</div>
+  </div>
+
+  <h2>Threats</h2>
+  {% for name, fate, objective in summary.threats %}
+  <p class="summary-threat"><b>{{ name }}</b>: {{ fate }}<br><span class="muted">{{ objective }}</span></p>
+  {% else %}
+  <p>There were no antagonists this round.</p>
+  {% endfor %}
+
+  {% if summary.mode == "career" %}
+  <h2>Career</h2>
+  {% if summary.career_over %}
+  <p class="summary-died">You could not pay to be revived. This career is over. Start a new one from the lobby.</p>
+  {% else %}
+    {% for job in summary.unlocked %}
+    <p class="summary-survived">Unlocked: {{ job }}, paying {{ job_salary(job) }} credits every 10 minutes.</p>
+    {% endfor %}
+    {% if pick_from %}
+    <form method="post" action="{{ url_for('unlock_job_route') }}" class="form-stack narrow-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Your last shift ended without a new job. Pick one to unlock.
+        <select name="job">
+          {% for job in pick_from %}
+          <option value="{{ job }}">{{ job }} - {{ job_salary(job) }} cr / 10 min</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn btn-primary" type="submit">Unlock Job</button>
+    </form>
+    {% elif not summary.unlocked %}
+    <p>The round counted toward your career. There was nothing new to unlock.</p>
+    {% endif %}
+  {% endif %}
+  {% else %}
+  <p class="muted">This was a single round. Nothing from it is kept.</p>
+  {% endif %}
+
+  <p class="center"><a class="btn btn-primary btn-wide" href="{{ url_for('home') }}">Back to the Lobby</a></p>
+</section>
+{% endblock %}

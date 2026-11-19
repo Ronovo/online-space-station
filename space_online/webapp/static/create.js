@@ -1,35 +1,34 @@
 (() => {
   "use strict";
 
-  const data = JSON.parse(document.getElementById("creation-data").textContent);
-  const nameInput = document.getElementById("name");
-  const departmentSelect = document.getElementById("department");
-  const jobSelect = document.getElementById("job");
-  const credits = document.getElementById("job-credits");
-  const description = document.getElementById("job-description");
-  const jobsByDepartment = Object.fromEntries(data.departments);
+  const { names } = JSON.parse(document.getElementById("creation-data").textContent);
 
-  function showJob(job) {
-    const info = data.jobs[job];
-    credits.textContent = info ? `${info.credits} cr` : "-";
-    description.textContent = info ? info.description : "Select a department and job to see details.";
-  }
-
-  function rebuildJobs(selectedJob) {
-    const jobs = jobsByDepartment[departmentSelect.value] || [];
-    const options = jobs.length ? jobs : [data.selectJob];
-    jobSelect.replaceChildren(...options.map((job) => new Option(job, job)));
-    if (options.includes(selectedJob)) {
-      jobSelect.value = selectedJob;
-    }
-    showJob(jobSelect.value);
-  }
-
-  document.getElementById("random-name").addEventListener("click", () => {
-    nameInput.value = data.names[Math.floor(Math.random() * data.names.length)];
+  document.querySelectorAll("[data-random-name]").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.getElementById(button.dataset.randomName).value = names[Math.floor(Math.random() * names.length)];
+    });
   });
-  departmentSelect.addEventListener("change", () => rebuildJobs());
-  jobSelect.addEventListener("change", () => showJob(jobSelect.value));
 
-  rebuildJobs(jobSelect.dataset.selected);
+  const chooser = document.getElementById("lobby-chooser");
+  const panels = document.querySelectorAll("[data-lobby-panel]");
+  const showPanel = (name) => {
+    chooser.classList.toggle("hidden", name !== null);
+    panels.forEach((panel) => panel.classList.toggle("hidden", panel.dataset.lobbyPanel !== name));
+  };
+  document.querySelectorAll("[data-lobby-choose]").forEach((button) => {
+    button.addEventListener("click", () => showPanel(button.dataset.lobbyChoose));
+  });
+  document.querySelectorAll("[data-lobby-back]").forEach((button) => {
+    button.addEventListener("click", () => showPanel(null));
+  });
+
+  const mode = document.getElementById("round-mode");
+  if (mode) {
+    const description = document.getElementById("round-mode-description");
+    const showDescription = () => {
+      description.textContent = mode.selectedOptions[0].dataset.description;
+    };
+    mode.addEventListener("change", showDescription);
+    showDescription();
+  }
 })();

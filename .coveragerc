@@ -1,5 +1,6 @@
 [run]
 branch = True
+dynamic_context = test_function
 source = space_online
 
 [report]
@@ -12,3 +13,4 @@ directory = coverage/python
 extra_css = coverage-index/coverage-py.css
 skip_covered = False
 skip_empty = True
+show_contexts = True

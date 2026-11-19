@@ -1,0 +1,80 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Canister Rack") }}
+<div class="two-columns">
+  <fieldset class="group">
+    <legend>On the Rack</legend>
+    <div class="listbox short" data-scroll-key="canisters">
+      {% for slot in p.slots %}
+        {% if slot.empty %}
+          <div class="list-item">{{ slot.label }}</div>
+        {% else %}
+          {{ ui.row(slot.label, "panel.select_canister", {"index": slot.index}, slot.index == p.selected) }}
+        {% endif %}
+      {% endfor %}
+    </div>
+  </fieldset>
+  <fieldset class="group">
+    <legend>Gauge</legend>
+    <p class="result">{{ p.canister.label ~ ": " ~ p.canister.gauge if p.canister else "Pick a canister to read its gauge." }}</p>
+  </fieldset>
+</div>
+{% if p.canister %}
+<fieldset class="group">
+  <legend>Transfer to Another Canister</legend>
+  <div class="toggle-row">
+    {% for row in p.targets %}
+      {{ ui.btn(row.label, "panel.set_target", {"index": row.index}, "btn-toggle btn-small" ~ (" active" if p.target == row.index else "")) }}
+    {% endfor %}
+  </div>
+  <div class="slider-row">
+    <label for="transfer-amount">Amount (mol)</label>
+    <input id="transfer-amount" type="range" min="0" max="{{ p.max_amount }}" value="{{ p.amount }}" data-action="panel.set_amount">
+    <output for="transfer-amount">{{ p.amount }}</output>
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Transfer", "panel.transfer", cls="btn-primary") }}
+    {{ ui.btn("Vent to Space", "panel.vent_canister") }}
+    {{ ui.btn("Send to Engineering", "panel.send_to_engineering") }}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>Gas Tanks You Carry</legend>
+  <div class="listbox short" data-scroll-key="tanks">
+    {% for tank in p.tanks %}
+      {{ ui.row(tank.label, "panel.select_tank", {"index": tank.index}, tank.index == p.tank) }}
+    {% else %}
+      <div class="list-item">You carry no Gas Tank. The tank rack hands out empty ones.</div>
+    {% endfor %}
+  </div>
+  <div class="slider-row">
+    <label for="tank-amount">Fill (mol)</label>
+    <input id="tank-amount" type="range" min="0" max="{{ p.tank_max }}" value="{{ p.tank_amount }}" data-action="panel.set_tank_amount">
+    <output for="tank-amount">{{ p.tank_amount }}</output>
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Fill the Tank", "panel.fill_tank") }}
+    {{ ui.btn("Empty the Tank into the Canister", "panel.empty_tank") }}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>Port</legend>
+  <div class="toggle-row">
+    {{ ui.btn("Not Connected", "panel.set_port", {"port": ""}, "btn-toggle btn-small" ~ (" active" if not p.canister.port else "")) }}
+    {% for key, name in p.ports %}
+      {{ ui.btn(name, "panel.set_port", {"port": key}, "btn-toggle btn-small" ~ (" active" if p.canister.port == key else "")) }}
+    {% endfor %}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>Heater / Freezer</legend>
+  <div class="slider-row">
+    <label for="heater-target">Target (K)</label>
+    <input id="heater-target" type="range" min="{{ p.heater_range[0] }}" max="{{ p.heater_range[1] }}" value="{{ p.canister.thermo.target }}" data-action="panel.set_heater_target">
+    <output for="heater-target">{{ p.canister.thermo.target }}</output>
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Heater/Freezer: " ~ ("ON" if p.canister.thermo.on else "OFF"), "panel.toggle_heater", cls="btn-toggle" ~ (" active" if p.canister.thermo.on else "")) }}
+  </div>
+</fieldset>
+{% endif %}
+{{ ui.feedback(p.feedback) }}

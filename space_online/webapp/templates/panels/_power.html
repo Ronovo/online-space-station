@@ -1,0 +1,14 @@
+  <div class="bar-line">
+    <b class="bar-label">Battery</b>
+    <div class="bar small"><div class="bar-fill" style="width: {{ power.battery_level }}%; background: {{ power.battery_color }}"></div></div>
+    <b style="color: {{ power.battery_color }}">{{ "%.0f"|format(power.battery_level) }}%</b>
+  </div>
+  <p>Band: {{ power.battery_band }} &nbsp; Mode: {{ power.power_mode }} &nbsp; Solar:
+    <b style="color: {{ '#00FF00' if power.solar_charging else '#FF6666' }}">{{ "ACTIVE" if power.solar_charging else "INACTIVE" }}</b></p>
+  {% for system in power.systems %}
+  <div class="system-row">
+    <b>{{ system.name }}</b>
+    <span><b style="color: {{ system.status_color }}">{{ system.status }}</b> &nbsp; Lv {{ system.level }}</span>
+  </div>
+  {% endfor %}
+  <p style="color: {{ '#00FF00' if power.oxygen_threat == 'safe' else '#FF0000' }}">Air: {{ "%.0f"|format(power.air.oxygen) }}% Oxygen at {{ "%.1f"|format(power.air.pressure) }} kPa &nbsp; Reservoir: {{ "%.0f"|format(power.air.reservoir) }}%</p>

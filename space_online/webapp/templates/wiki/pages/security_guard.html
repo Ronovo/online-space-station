@@ -3,22 +3,37 @@
 {% block page %}
 <h2>What you do</h2>
 <p>
-  You keep order. At the Security Station you see the crew manifest, issue warrants and fines, and run the jail:
-  pardoning prisoners or adding time to their sentences. You can also lock and unlock the Security door. See
+  You keep order. At the Security Station you see the crew manifest, issue warrants and fines, read the incident
+  log, and run the jail: pardoning prisoners or adding time to their sentences. You can also lock and unlock the Security Office door. See
   {{ w.link("Security and Jail") }}.
 </p>
 
 <h2>Arrests</h2>
 <ul>
-  <li>When you walk into a room, you scan it for warrants and collect any unpaid fines from the crew inside.</li>
-  <li>When you meet wanted crew in a room or the halls, or call one back to their post, you choose to
-    <b>Arrest</b> or <b>Let Go</b>. Some offer a bribe to be let go.</li>
-  <li>You collect unpaid fines from crew you pass in the halls. Anyone who can't or won't pay goes to jail.</li>
+  <li>You scan rooms for warrants, collect fines, and arrest or let go the wanted crew you meet. See
+    {{ w.link("Security and Jail") }}.</li>
+  <li>Your PDA's <b>Scan Crew</b> reads the record of anyone standing where you are, and how many of the shift's
+    incidents they were away from their post for. It also messages you about warrants and antagonists. See
+    {{ w.link("PDA") }}.</li>
+</ul>
+
+<h2>Antagonists</h2>
+<ul>
+  <li>In a fight, a jab from the Stun Baton makes the enemy lose its next turns, and Handcuffs on a stunned antagonist
+    end the fight at once. See {{ w.link("Combat and Weapons") }}.</li>
+  <li>NPC Security Guards hunt revealed antagonists on their own. See {{ w.link("Antagonists") }}.</li>
+  <li>A warrant raised on an anonymous tip has nobody standing behind it. You can clear it from Issue
+    Warrant/Fine.</li>
+  <li>The <b>Incident Log</b> lists who was away from their post for each incident. Whoever is away every time is
+    your suspect: a warrant and an arrest ends a hidden antagonist before it strikes.</li>
+  <li>While the shuttle is docked you can watch for a hidden antagonist, and you can arrest wanted crew into its cell.
+    See {{ w.link("Rounds and the Shuttle") }}.</li>
 </ul>
 
 <h2>Job events</h2>
 <p>
-  <b>Witness a Crime</b>: if a crew member is in the hall with you, a warrant goes out for them and you can arrest them.
-  Otherwise you don't catch who did it.
+  <b>Witness a Crime</b>: it only comes while you are out in the hallways. A crew member who could be up to no good,
+  anywhere aboard and not already wanted, is named, and a warrant goes out for them that you can arrest them on. With
+  nobody to name, you don't catch who did it.
 </p>
 {% endblock %}

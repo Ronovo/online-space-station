@@ -1,0 +1,24 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Order Console") }}
+<p class="center">Request a supply from Central Command. The Quartermaster answers on your PDA, and charges you only
+  if they approve it. It docks at the Cargo Bay {{ p.minutes }} later.</p>
+<p class="center">Your credits: {{ p.credits }}</p>
+<div class="card-list" data-scroll-key="request-goods">
+  {% for item in p.goods %}
+  <div class="item-card botany">
+    <span class="item-name">{{ item.name }} - {{ item.price }} credits</span>
+    {{ ui.btn("Request", "panel.request", {"item_id": item.id}, "btn-small") }}
+  </div>
+  {% endfor %}
+</div>
+<fieldset class="group">
+  <legend>Your Requests</legend>
+  {% if p.absent %}<p class="italic">{{ p.absent }}</p>{% endif %}
+  {% for request in p.requests %}
+    <p>{{ request.name }} - {{ request.status }}</p>
+  {% else %}
+    <p>You have no requests open.</p>
+  {% endfor %}
+  {% for line in p.held %}<p>{{ line }}</p>{% endfor %}
+</fieldset>
+{{ ui.feedback(p.feedback) }}

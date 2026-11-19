@@ -14,28 +14,50 @@
     minutes, and five wrong passwords in a row lock logins for a minute.</li>
 </ul>
 
-<h2>Your character</h2>
+<h2>The lobby</h2>
 <ul>
-  <li>Each account has one character. You pick a name, a department and a job. Your job sets your starting credits
-    and which station doors and controls you can use. Each job has its own page under Jobs in the
+  <li>The game is played in rounds. Each round is one shift on the station, and it ends when the crew shuttle takes
+    everyone home. See {{ w.link("Rounds and the Shuttle") }}.</li>
+  <li>From the lobby you start or continue your <b>career</b>, which climbs a ladder of jobs, or play a
+    <b>single round</b> in any job, Peaceful or with antagonists. See {{ w.link("Modes and Careers") }}.</li>
+  <li>Your job sets which station doors and controls you can use. Each job has its own page under Jobs in the
     <a href="{{ url_for('wiki.index') }}">guide index</a>.</li>
-  <li>You start in your Quarters with a few items in your storage locker. See {{ w.link("Items and Hands") }}.</li>
-  <li>Your progress is saved after every action. <b>Save and Exit</b> takes you back to your account page, and
-    <b>Continue</b> picks up where you left off. The Bed in your Quarters just confirms the save.</li>
-  <li>Deleting your character on the account page erases all its progress, so you can roll a new one.</li>
+  <li>You start every round in your Quarters with a few items in your storage locker. See
+    {{ w.link("Items and Hands") }}.</li>
+  <li>You also start with a PDA in your inventory. Hold it in a hand for messages from your job, the Order Console,
+    the stock prices, your files and your job's scanner. See {{ w.link("PDA") }}.</li>
+  <li>Your progress is saved after every action. <b>Save and Exit</b>, at the right of the status bar in the hallways
+    and your Quarters, takes you back to the lobby, and
+    <b>Continue</b> picks the round up where you left off. The shift stands still while you are away: its clock only
+    runs while the game is open.</li>
+  <li><b>Delete Career</b> in the lobby erases your career and any round in progress.</li>
+</ul>
+
+<h2>The screen</h2>
+<ul>
+  <li><b>The status bar</b> across the top shows the alert level, the shift clock, your health, the crew shuttle
+    once it has been called, and where any antagonist loose on the station was last seen.</li>
+  <li><b>The Station Log</b> runs down the side, newest line first. Everything the game tells you goes there, and
+    nothing stops you to make you read it. A line stays highlighted for {{ facts.log_new_seconds }} seconds.</li>
+  <li><b>When you are hurt</b>, the edge of the screen flashes red and your health in the status bar drops.</li>
+  <li>A box in the middle of the screen is only ever a question the game needs answered.</li>
+  <li>Items lying where you stand show under the screen, each with a <b>Pick Up</b> button.</li>
 </ul>
 
 <h2>The Character Sheet</h2>
 <p>
-  Open it from any screen. It shows your job, department, credits, alcohol level, limb health and damage, and opens
-  your inventory, your stock holdings and your notes. Notes are a log of everything that has happened to you, newest
-  first.
+  Open it from any screen. It shows your job, department, credits, hunger, thirst, alcohol level, limb health and
+  damage, and opens your inventory, your stock holdings and your notes. Notes keep everything that has happened to
+  you, newest first.
 </p>
 
 <h2>Where to go next</h2>
 <ul>
   <li>{{ w.link("The Station") }}: getting around and what's in each room.</li>
   <li>{{ w.link("Health") }}: staying alive.</li>
-  <li>{{ w.link("Errands and Job Events") }}: the work your job sends you.</li>
+  <li>{{ w.link("Antagonists") }} and {{ w.link("Combat and Weapons") }}: what is out to get you, and how to fight
+    back.</li>
+  <li>{{ w.link("Duties and Job Events") }}: the work your job sends you.</li>
+  <li>{{ w.link("Station Stores") }}: how the departments depend on each other.</li>
 </ul>
 {% endblock %}

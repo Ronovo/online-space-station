@@ -1,11 +1,43 @@
-{% if view.panel %}
-<section class="panel panel-{{ view.panel.type|replace('_', '-') }}">
-  {% with p = view.panel.ctx %}{% include "panels/" ~ view.panel.type ~ ".html" %}{% endwith %}
-</section>
-{% else %}
-{% with s = view.screen %}
-<section class="screen" style="--screen-bg: {{ s.style.bg }}; --screen-fg: {{ s.style.fg }};">
-  {% include "game/" ~ s.type ~ ".html" %}
-</section>
-{% endwith %}
-{% endif %}
+{% import "game/_ui.html" as ui %}
+{% set status = view.status %}
+<div class="status-bar alert-{{ status.alert|lower }}">
+  <span class="status-alert" style="color: {{ status.alert_color }}">ALERT: {{ status.alert|upper }}</span>
+  <span class="status-clock">Shift T+{{ status.clock }}</span>
+  <span class="status-health" data-health="{{ status.health }}" style="color: {{ status.health_color }}">Health {{ status.health }}%</span>
+  {% if status.shuttle %}<span class="status-shuttle">{{ status.shuttle }}</span>{% endif %}
+  {% for line in status.sightings %}<span class="status-sighting">{{ line }}</span>{% endfor %}
+  {% if view.screen.type in ("hallway", "quarters") %}
+  <span class="status-exit">{{ ui.btn("Save and Exit", "game.save_and_exit", cls="btn-small") }}</span>
+  {% endif %}
+</div>
+<div class="game-columns">
+  <div class="game-main">
+    {% if view.panel %}
+    <section class="panel panel-{{ view.panel.type|replace('_', '-') }}">
+      {% with p = view.panel.ctx %}{% include "panels/" ~ view.panel.template ~ ".html" %}{% endwith %}
+    </section>
+    {% else %}
+    {% with s = view.screen %}
+    <section class="screen" style="--screen-bg: {{ s.style.bg }}; --screen-fg: {{ s.style.fg }};">
+      {% include "game/" ~ s.type ~ ".html" %}
+    </section>
+    {% endwith %}
+    {% endif %}
+  </div>
+  <aside class="log-pane" aria-label="Station log">
+    <div class="log-body">
+      <h2 class="log-title">Station Log</h2>
+      <ol class="log-lines" data-scroll-key="station-log" aria-live="polite">
+        {% for line in view.log %}
+        <li class="log-line log-{{ line.kind }}{% if line.new %} log-new{% endif %}">
+          <span class="log-time">T+{{ line.time }}</span>
+          <span class="log-head">{{ line.title }}</span>
+          <span class="log-text">{{ line.text }}</span>
+        </li>
+        {% else %}
+        <li class="log-line log-empty">Nothing to report yet.</li>
+        {% endfor %}
+      </ol>
+    </div>
+  </aside>
+</div>

@@ -6,7 +6,7 @@ FOOD_ITEMS = {
         "name": "Snack",
         "description": "A packaged station snack from a vending machine.",
         "category": "Food",
-        "attributes": {},
+        "attributes": {"feeds": 25},
         "actions": ["examine", "eat", "drop"],
     },
     "energy_bar": {
@@ -14,15 +14,16 @@ FOOD_ITEMS = {
         "name": "Energy Bar",
         "description": "A dense, nutrient-rich bar. Tastes like cardboard.",
         "category": "Food",
-        "attributes": {},
+        "attributes": {"feeds": 35},
         "actions": ["examine", "eat", "drop"],
     },
     "emergency_rations": {
         "id": "emergency_rations",
         "name": "Emergency Rations",
+        "plural": True,
         "description": "Standard emergency food supply. Use only when necessary.",
         "category": "Food",
-        "attributes": {},
+        "attributes": {"feeds": 50},
         "actions": ["examine", "eat", "drop"],
     },
 }
@@ -70,4 +71,45 @@ PRODUCE = {
     },
 }
 
+def _mutant(item_id, name, description, **attributes):
+    return {
+        "id": item_id,
+        "name": name,
+        "description": description,
+        "category": "Food",
+        "attributes": attributes,
+        "actions": ["examine", "eat", "drop"],
+    }
+
+
+# What "The Ooze" Mutagen can turn each plant's harvest into. Each feeds more than the plain kind or mends
+# something as it is eaten ("heals", as a remedy has it).
+MUTANT_PRODUCE = {
+    "blood_tomato": _mutant("blood_tomato", "Blood Tomato", "A dark, heavy tomato that pulses faintly. It draws "
+                            "poison out of whoever eats it.", feeds=40, heals={"poison": 15}),
+    "glow_potato": _mutant("glow_potato", "Glow Potato", "A potato that gives off a soft green light. One is a "
+                           "meal.", feeds=60),
+    "steelwheat": _mutant("steelwheat", "Steelwheat", "Wheat with a grey, metallic sheen. It knits bruises as it "
+                          "goes down.", feeds=30, heals={"limbs": 5}),
+    "night_carrot": _mutant("night_carrot", "Night Carrot", "A carrot as black as the space outside. It clears the "
+                            "lungs.", feeds=30, heals={"oxygen": 15}),
+    "golden_apple": _mutant("golden_apple", "Golden Apple", "An apple with a skin like polished brass. It mends "
+                            "limbs.", feeds=40, heals={"limbs": 10}),
+    "royal_aloe": {
+        "id": "royal_aloe",
+        "name": "Royal Aloe",
+        "description": "A thick purple aloe leaf, far stronger on burns than the plain kind.",
+        "category": "Healing",
+        "attributes": {"heals": {"burn": 25}},
+        "actions": ["examine", "use", "drop"],
+    },
+}
+# plain produce id -> the mutant it can become
+MUTANT_OF = {"tomato": "blood_tomato", "potato": "glow_potato", "wheat": "steelwheat", "carrot": "night_carrot",
+             "apple": "golden_apple", "aloe": "royal_aloe"}
+
+# The produce the kitchen cooks with, which Botany sends it through the station stores.
+KITCHEN_PRODUCE_IDS = ("tomato", "potato", "carrot", "apple")
+
 FOOD_ITEMS.update(PRODUCE)
+FOOD_ITEMS.update(MUTANT_PRODUCE)

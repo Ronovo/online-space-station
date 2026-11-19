@@ -1,32 +1,175 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="card home-card">
+<section class="card lobby-card">
   <h1>Space Station Explorer</h1>
-  {% if character %}
-  <div class="character-summary">
-    <div><span class="label">Character</span> {{ character.name }}</div>
-    <div><span class="label">Job</span> {{ character.job }}</div>
-    <div><span class="label">Credits</span> {{ "%.2f"|format(character.credits) }}</div>
-    <div><span class="label">Last played</span> {{ character.updated_at|replace("T", " ") }}</div>
+
+  {% if shift %}
+  <div class="lobby-block">
+    <h2>Round in Progress</h2>
+    <div class="character-summary">
+      <div><span class="label">Character</span> {{ shift.name }}</div>
+      <div><span class="label">Job</span> {{ shift.job }}</div>
+      <div><span class="label">Mode</span> {{ shift.round.mode|title }}</div>
+      <div><span class="label">Credits</span> {{ "%.2f"|format(shift.credits) }}</div>
+      <div><span class="label">Last played</span> {{ updated_at|replace("T", " ") }}</div>
+    </div>
+    <a class="btn btn-primary btn-wide" href="{{ url_for('play') }}">Continue</a>
+    {% if shift.round.mode != "career" %}
+    <form method="post" action="{{ url_for('abandon_round') }}" class="center">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-small" type="submit">Abandon Round</button>
+    </form>
+    {% endif %}
   </div>
-  <a class="btn btn-wide" href="{{ url_for('play') }}">Continue</a>
-  {% else %}
-  <p>You don't have a character yet.</p>
-  <a class="btn btn-wide" href="{{ url_for('new_character') }}">New Character</a>
   {% endif %}
+
+  {% if career_over %}
+  <div class="lobby-block">
+    <h2>Career Over</h2>
+    <p>{{ career_over.name }}'s career ended: {{ career_over.cause }}, with no credits left for a revive.</p>
+    <a class="btn btn-small" href="{{ url_for('round_summary') }}">Shift Report</a>
+  </div>
+  {% endif %}
+
+  {% if not shift %}
+  <div class="lobby-block{{ ' hidden' if open_panel == 'career' }}" id="lobby-chooser">
+    <h2>Choose a game</h2>
+    <div class="inline">
+      <button class="btn btn-primary" type="button" data-lobby-choose="career">Career</button>
+      <button class="btn btn-primary" type="button" data-lobby-choose="single">Single Round</button>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="lobby-block{{ '' if shift or open_panel == 'career' else ' hidden' }}" data-lobby-panel="career">
+    <h2>Career</h2>
+    {% if career %}
+    <div class="character-summary">
+      <div><span class="label">Name</span> {{ career.name }}</div>
+      <div><span class="label">Credits</span> {{ "%.2f"|format(career.credits) }}</div>
+      <div><span class="label">Rounds</span> {{ career.rounds }} completed</div>
+      <div><span class="label">Revive</span> {{ revive_cost }} credits if you die</div>
+    </div>
+    {% set locked = ladder|reject('in', unlocked)|list %}
+    <ol class="ladder">
+      {% for job in ladder if job in unlocked %}
+      <li class="ladder-open"><span>{{ job }}</span><span>{{ job_salary(job) }} cr / 10 min</span></li>
+      {% endfor %}
+    </ol>
+    {% if locked %}
+    <details>
+      <summary>Show {{ locked|length }} locked jobs</summary>
+      <ol class="ladder">
+        {% for job in locked %}
+        <li class="ladder-locked"><span>{{ job }}</span><span>{{ job_salary(job) }} cr / 10 min</span></li>
+        {% endfor %}
+      </ol>
+    </details>
+    {% endif %}
+    <p class="muted">
+      End a shift holding a job to unlock it: ask the Head of Personnel for it at Access Control on the Bridge. A shift
+      that ends without a new job lets you pick one instead. Head of Personnel opens once every other job is unlocked,
+      and Captain after a shift as Head of Personnel.
+    </p>
+    {% if pick_from %}
+    <form method="post" action="{{ url_for('unlock_job_route') }}" class="form-stack narrow-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Your last shift ended without a new job. Pick one to unlock.
+        <select name="job">
+          {% for job in pick_from %}
+          <option value="{{ job }}">{{ job }} - {{ job_salary(job) }} cr / 10 min</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn btn-primary" type="submit">Unlock Job</button>
+    </form>
+    {% endif %}
+    {% if not shift %}
+    <form method="post" action="{{ url_for('start_round') }}" class="form-stack narrow-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="mode" value="career">
+      <label>Job for this shift
+        <select name="job">
+          {% for job in unlocked|reverse %}
+          <option value="{{ job }}">{{ job }} - {{ job_salary(job) }} cr / 10 min</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="btn btn-primary" type="submit">Start Shift</button>
+    </form>
+    {% endif %}
+    <details>
+      <summary>Delete career</summary>
+      <form method="post" action="{{ url_for('delete_character') }}" class="danger-zone">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <h2>Delete Career</h2>
+        <p>This permanently erases your career, its credits and unlocks, and any round in progress.</p>
+        <label class="checkbox">
+          <input type="checkbox" name="confirm" value="yes" required>
+          I understand all progress will be lost.
+        </label>
+        <button class="btn btn-danger" type="submit">Delete Career</button>
+      </form>
+    </details>
+    {% else %}
+    <p>
+      Start at the bottom as a Staff Assistant. End a shift holding a new job and it is yours to start in from then on,
+      all the way up to Captain. Antagonists are loose every round. Die, and it costs credits to be revived; run out,
+      and the career is over.
+    </p>
+    <form method="post" action="{{ url_for('new_career_route') }}" class="form-stack narrow-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="career-name">Character name</label>
+      <div class="inline">
+        <input type="text" id="career-name" name="name" maxlength="40" required>
+        <button class="btn btn-small" type="button" data-random-name="career-name">Random</button>
+      </div>
+      <button class="btn btn-primary" type="submit">Start Career</button>
+    </form>
+    {% endif %}
+    {% if not shift %}<button class="btn btn-small" type="button" data-lobby-back>Back</button>{% endif %}
+  </div>
+
+  <div class="lobby-block{{ '' if shift else ' hidden' }}" data-lobby-panel="single">
+    <h2>Single Round</h2>
+    <p>One round in any job. Nothing from it is kept, and your career is not touched.</p>
+    {% if not shift %}
+    <form method="post" action="{{ url_for('start_round') }}" class="form-stack narrow-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label for="round-name">Character name</label>
+      <div class="inline">
+        <input type="text" id="round-name" name="name" maxlength="40" value="{{ career.name if career else '' }}" required>
+        <button class="btn btn-small" type="button" data-random-name="round-name">Random</button>
+      </div>
+      <label>Job
+        <select name="job">
+          {% for department, department_jobs in departments %}
+          <optgroup label="{{ department }}">
+            {% for job in department_jobs %}
+            <option value="{{ job }}">{{ job }} - starts with {{ jobs[job].credits }} cr</option>
+            {% endfor %}
+          </optgroup>
+          {% endfor %}
+        </select>
+      </label>
+      <label for="round-mode">Mode</label>
+      <select name="mode" id="round-mode">
+        {% for mode, description in mode_descriptions.items() %}
+        <option value="{{ mode }}" data-description="{{ description }}">{{ mode|title }}</option>
+        {% endfor %}
+      </select>
+      <p class="muted" id="round-mode-description"></p>
+      <button class="btn btn-primary" type="submit">Start Round</button>
+    </form>
+    <button class="btn btn-small" type="button" data-lobby-back>Back</button>
+    {% endif %}
+  </div>
+
   <p class="center"><a class="btn" href="{{ url_for('wiki.index') }}">Player Guide</a></p>
 
-  {% if character %}
-  <form method="post" action="{{ url_for('delete_character') }}" class="danger-zone">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <h2>Delete Character</h2>
-    <p>Deleting {{ character.name }} permanently erases all of their progress. You can then roll a new character.</p>
-    <label class="checkbox">
-      <input type="checkbox" name="confirm" value="yes" required>
-      I understand all progress will be lost.
-    </label>
-    <button class="btn btn-danger" type="submit">Delete Character</button>
-  </form>
-  {% endif %}
 </section>
+<script id="creation-data" type="application/json">{{ {"names": npc_names}|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='create.js') }}"></script>
 {% endblock %}

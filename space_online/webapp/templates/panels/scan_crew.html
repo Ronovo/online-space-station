@@ -1,0 +1,10 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Scan Crew", "Back to PDA") }}
+<p class="center">Pick someone here to read their record. The reading goes to the station log.</p>
+<div class="listbox narrow" data-scroll-key="scan-crew">
+  {% for member in p.crew %}
+    {{ ui.row(member.name ~ " (" ~ member.job ~ ")", "panel.scan", {"name": member.name}) }}
+  {% else %}
+    <div class="list-empty">There is nobody here to scan.</div>
+  {% endfor %}
+</div>

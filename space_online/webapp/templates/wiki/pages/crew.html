@@ -3,19 +3,35 @@
 {% block page %}
 <h2>Who's aboard</h2>
 <p>
-  The crew is made up around your job. Every department job other than yours gets a crew member posted at their room,
-  and a couple of Staff Assistants wander the halls. A Head of Personnel starts with only a Captain and Staff
-  Assistants, and fills the other jobs. See {{ w.link("Bridge and Personnel") }}.
+  The crew is made up around your job. Every department post other than yours gets a crew member posted at its room,
+  and a couple of Staff Assistants wander the halls. A post is a job in a room: most jobs have one, and the Scientist
+  has one in each science lab. A Scientist player is posted to one lab and finds Scientist crew in the others. On top of that come {{ facts.extra_crew[0] }} or
+  {{ facts.extra_crew[1] }} extra crew in jobs picked at random, never yours and never the Captain's or the Head of
+  Personnel's. They share a job with its post holder but spend the shift roaming.
 </p>
 
 <h2>On duty and away</h2>
 <ul>
-  <li>Posted crew sometimes leave their room. They wander the halls, visit another room for a while, then head back.</li>
+  <li>When the crew shuttle is called, the crew away from their posts head for Departures, and the rest follow once it
+    docks. See {{ w.link("Rounds and the Shuttle") }}.</li>
+  <li>Posted crew stay at their post and get on with their work. See {{ w.link("Station Stores") }}. Now and then
+    one leaves on an errand to another room and comes straight back, or just goes for a walk. The Captain and the
+    Security Guard patrol more.</li>
   <li>While someone is on duty, their room offers their service: the Bartender takes orders, the Doctor treats you,
     and so on.</li>
   <li>When they're away, the room shows a <b>Call</b> button. They answer about
     {{ (facts.call_chance * 100)|round|int }}% of the time and head back to their post.</li>
   <li>A jailed crew member can't be called. The room shows when they get out.</li>
+  <li>Nobody can be called while the Communication Array is down. See {{ w.link("Power") }}.</li>
+</ul>
+
+<h2>Too hurt to work</h2>
+<ul>
+  <li>A crew member whose overall health falls into the Critical band stops working and stops moving until a Doctor
+    treats them. Their room says so.</li>
+  <li>The Doctor crew member treats them in time, while MedBay has remedies. See {{ w.link("Medical") }}.</li>
+  <li>While a post holder is jailed or too hurt, the Captain covers their work, and failing that the Head of Personnel
+    covers the rooms they have access to.</li>
 </ul>
 
 <h2>Crew life</h2>
@@ -23,6 +39,5 @@
   <li>Wandering crew pick up small injuries and heal from them. A Doctor can treat them. See {{ w.link("Medical") }}.</li>
   <li>Now and then someone commits a petty crime and a warrant goes out. Security Guards and Captains never do. See
     {{ w.link("Security and Jail") }}.</li>
-  <li>The Crew Manifest at the Security and Bridge stations lists everyone by department.</li>
 </ul>
 {% endblock %}

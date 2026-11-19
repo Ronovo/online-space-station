@@ -1,0 +1,12 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Head Count") }}
+<div class="hands-list" data-scroll-key="head-count">
+  {% for row in p.rows %}
+  <div class="hand-row">
+    <span>{{ row.text }}</span>
+    {% if row.page %}{{ ui.btn("Page", "panel.page", {"name": row.name}, "btn-small") }}{% endif %}
+  </div>
+  {% else %}
+  <p>No crew on the manifest.</p>
+  {% endfor %}
+</div>

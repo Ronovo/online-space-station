@@ -1,8 +1,12 @@
 """
 The "Donut" station layout: a hollow square ring of hallways with special
 rooms sprouting off of it (Bridge, MedBay, Security, Engineering, Bar,
-Botany), plus the player's Quarters attached at the hallway junction.
+Kitchen, Botany, Mining Bay, Cargo Bay, Departures), the player's Quarters attached at the hallway
+junction, and the Science Hall off the east side, with doors to Atmospherics, Chemistry and the Research Lab.
 """
+
+from collections import deque
+from typing import NamedTuple
 
 # --- Special room coordinate keys ---
 QUARTERS_KEY = "-1,0"
@@ -12,6 +16,13 @@ SECURITY_KEY = "6,6"
 ENGINEERING_KEY = "6,3"
 BAR_KEY = "-1,3"
 BOTANY_KEY = "3,-1"
+KITCHEN_KEY = "-1,2"
+CHEMISTRY_KEY = "3,7"
+MINING_KEY = "6,2"
+CARGO_KEY = "6,1"
+RESEARCH_KEY = "2,6"
+DEPARTURES_KEY = "1,-1"
+ATMOSPHERICS_KEY = "4,6"
 
 # Where a new game (or a player who somehow loses their location) starts.
 QUARTERS_LOCATION = {"x": -1, "y": 0}
@@ -43,69 +54,97 @@ DIRECTION_GRID = {"north": (0, 1), "south": (2, 1), "east": (1, 2), "west": (1, 
 SHIP_MAP = {
     QUARTERS_KEY: {"name": "Quarters", "desc": "Your personal quarters on the station."},
     "0,0": {"name": "Hallway Junction", "desc": "A junction in the hallway. Your quarters are nearby."},
-    "1,0": {"name": "North Hallway", "desc": "A long hallway stretching north."},
+    "1,0": {"name": "Departures Entrance", "desc": "This hallway leads to Departures, where the crew shuttle docks."},
     "2,0": {"name": "North Hallway", "desc": "A long hallway stretching north."},
     "3,0": {"name": "North Hallway", "desc": "A long hallway stretching north. You notice a door labeled 'Botany Lab' on the west wall."},
     "4,0": {"name": "North Hallway", "desc": "A long hallway stretching north."},
     "5,0": {"name": "North End", "desc": "The northern end of the hallway. The bridge is nearby."},
     "0,1": {"name": "East Hallway", "desc": "A long hallway stretching east."},
-    "0,2": {"name": "East Hallway", "desc": "A long hallway stretching east."},
+    "0,2": {"name": "Kitchen Entrance", "desc": "This hallway leads to the station Kitchen. Something smells good."},
     "0,3": {"name": "Bar Entrance", "desc": "This hallway leads to the station Bar. Soft music can be heard from inside."},
     "0,4": {"name": "East Hallway", "desc": "A long hallway stretching east."},
     "0,5": {"name": "East End", "desc": "The eastern end of the hallway. The medbay is nearby."},
 
-    "5,1": {"name": "Northeast Hallway", "desc": "A hallway connecting the north and east corridors."},
-    "5,2": {"name": "Northeast Hallway", "desc": "A hallway connecting the north and east corridors."},
+    "5,1": {"name": "Cargo Bay Entrance", "desc": "This hallway leads to the Cargo Bay. Crates are stacked along the wall."},
+    "5,2": {"name": "Mining Bay Entrance", "desc": "This hallway leads to the Mining Bay. The floor hums underfoot."},
     "5,3": {"name": "Engineering Bay Entrance", "desc": "This hallway leads to the Engineering Bay."},
     "5,4": {"name": "Northeast Hallway", "desc": "A hallway connecting the north and east corridors."},
     "5,5": {"name": "Northeast Corner", "desc": "The far corner of the station. Security is nearby."},
 
     "4,5": {"name": "East Section", "desc": "A hallway along the eastern side of the station."},
-    "3,5": {"name": "East Section", "desc": "A hallway along the eastern side of the station."},
+    "3,5": {"name": "East Section", "desc": "A hallway along the eastern side of the station. The Science Hall is to the east."},
     "2,5": {"name": "East Section", "desc": "A hallway along the eastern side of the station."},
     "1,5": {"name": "East Section", "desc": "A hallway connecting back to the main hallways."},
 
-    BRIDGE_KEY: {"name": "Bridge", "locked": False},
-    MEDBAY_KEY: {"name": "MedBay", "locked": False},
-    SECURITY_KEY: {"name": "Security", "locked": False},
-    ENGINEERING_KEY: {"name": "Engineering Bay", "locked": False},
-    BAR_KEY: {"name": "Bar", "locked": False},
-    BOTANY_KEY: {"name": "Botany Lab", "locked": False},
+    "3,6": {"name": "Science Hall", "desc": "A bright, quiet hall with three sealed lab doors: Atmospherics to the north, Chemistry to the east and the Research Lab to the south. The main hallway is back to the west."},
+
 }
 
-# Which "x,y" tiles are special-room doors, and what the room is called.
-SPECIAL_ROOM_TILES = {
-    BRIDGE_KEY: "Bridge",
-    MEDBAY_KEY: "MedBay",
-    SECURITY_KEY: "Security",
-    ENGINEERING_KEY: "Engineering",
-    BAR_KEY: "Bar",
-    BOTANY_KEY: "Botany",
-    QUARTERS_KEY: "Quarters",
+
+class Room(NamedTuple):
+    """One special room.
+
+    room      the short name its room class is registered under
+    name      what the room is called on doors, maps and in messages
+    hallway   the hallway tile in front of its door
+    button    (row, col) of its door button on that tile's nav grid, a cell whose direction is closed there
+    access    the subdepartments that work its door and stations
+    posts     the jobs with a post in it. A job may have posts in several rooms
+    """
+    room: str
+    name: str
+    hallway: tuple
+    button: tuple
+    access: frozenset = frozenset()
+    posts: tuple = ()
+
+
+ROOMS = {
+    BRIDGE_KEY: Room("Bridge", "Bridge", (5, 0), (0, 1), frozenset({"Captain", "HoP"}),
+                     ("Captain", "Head of Personnel")),
+    MEDBAY_KEY: Room("MedBay", "MedBay", (0, 5), (1, 2), frozenset({"Captain", "HoP", "Doctor"}), ("Doctor",)),
+    SECURITY_KEY: Room("Security", "Security Office", (5, 5), (0, 1), frozenset({"Captain", "Security"}),
+                       ("Security Guard",)),
+    ENGINEERING_KEY: Room("Engineering", "Engineering Bay", (5, 3), (0, 1),
+                          frozenset({"Captain", "HoP", "Engineer"}), ("Engineer",)),
+    BAR_KEY: Room("Bar", "Bar", (0, 3), (2, 1), frozenset({"Captain", "HoP", "Bar"}), ("Bartender",)),
+    BOTANY_KEY: Room("Botany", "Botany Lab", (3, 0), (1, 0), frozenset({"Captain", "HoP", "Botany"}), ("Botanist",)),
+    KITCHEN_KEY: Room("Kitchen", "Kitchen", (0, 2), (2, 1), frozenset({"Captain", "HoP", "Kitchen"}), ("Chef",)),
+    CHEMISTRY_KEY: Room("Chemistry", "Chemistry Lab", (3, 6), (1, 2), frozenset({"Captain", "HoP", "Science"}),
+                        ("Scientist",)),
+    MINING_KEY: Room("Mining", "Mining Bay", (5, 2), (0, 1), frozenset({"Captain", "HoP", "Mining"}), ("Miner",)),
+    CARGO_KEY: Room("Cargo", "Cargo Bay", (5, 1), (0, 1), frozenset({"Captain", "HoP", "Cargo"}),
+                    ("Quartermaster",)),
+    RESEARCH_KEY: Room("Research", "Research Lab", (3, 6), (2, 1), frozenset({"Captain", "HoP", "Science"}),
+                       ("Scientist",)),
+    ATMOSPHERICS_KEY: Room("Atmospherics", "Atmospherics", (3, 6), (0, 1), frozenset({"Captain", "HoP", "Science"}),
+                           ("Scientist",)),
+    DEPARTURES_KEY: Room("Departures", "Departures", (1, 0), (1, 0)),
+    QUARTERS_KEY: Room("Quarters", "Quarters", (0, 0), (2, 1)),
 }
 
-# Which hallway tile sits directly in front of each special room's door.
-SPECIAL_ROOM_HALLWAY = {
-    BRIDGE_KEY: (5, 0),
-    MEDBAY_KEY: (0, 5),
-    SECURITY_KEY: (5, 5),
-    ENGINEERING_KEY: (5, 3),
-    BAR_KEY: (0, 3),
-    BOTANY_KEY: (3, 0),
-    QUARTERS_KEY: (0, 0),
-}
+SHIP_MAP.update({key: {"name": room.name, "locked": False, "hazard": None}
+                 for key, room in ROOMS.items() if key != QUARTERS_KEY})
 
-# Each room's door button on the nav grid of the hallway tile in front of it: its label and (row, col). A door
-# always takes a grid cell whose direction is closed on that tile.
-ROOM_DOOR_BUTTONS = {
-    BRIDGE_KEY: ("Bridge", (0, 1)),
-    MEDBAY_KEY: ("MedBay", (1, 2)),
-    SECURITY_KEY: ("Security", (0, 1)),
-    ENGINEERING_KEY: ("Engineering Bay", (0, 1)),
-    BAR_KEY: ("Bar", (2, 1)),
-    BOTANY_KEY: ("Botany Lab", (1, 0)),
-    QUARTERS_KEY: ("Quarters", (3, 1)),
-}
+LOCKABLE_ROOM_KEYS = tuple(key for key in ROOMS if key != QUARTERS_KEY)
+SPECIAL_ROOM_TILES = {key: room.room for key, room in ROOMS.items()}
+SPECIAL_ROOM_HALLWAY = {key: room.hallway for key, room in ROOMS.items()}
+
+
+def step_toward(start, target):
+    """The hallway tile one step from start along the shortest way to target, or start itself once it is there."""
+    if start == target:
+        return start
+    # Breadth-first search out from the target, so each tile's parent is its next step toward it.
+    parents = {target: None}
+    queue = deque([target])
+    while start not in parents:
+        current = queue.popleft()
+        for neighbor in hallway_neighbors(*current).values():
+            if neighbor not in parents:
+                parents[neighbor] = current
+                queue.append(neighbor)
+    return parents[start]
 
 
 def hallway_neighbors(x, y):

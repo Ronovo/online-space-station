@@ -7,7 +7,7 @@ import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
 
-from helpers import create_character, post, register
+from helpers import post, register, start_round
 
 KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
 PUBLIC_KEY = base64.b64encode(KEY.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo)).decode()
@@ -25,10 +25,17 @@ def portfolio(monkeypatch):
     monkeypatch.setenv("PORTFOLIO_SSO_PUBLIC_KEY", PUBLIC_KEY)
 
 
-def portfolio_login(client, sub, token=None):
-    query = parse_qs(urlsplit(client.get("/sso/login").location).query)
+def portfolio_login(client, sub, token=None, next_path=None):
+    login_url = f"/sso/login?next={next_path}" if next_path else "/sso/login"
+    query = parse_qs(urlsplit(client.get(login_url).location).query)
     assert query["app"] == ["space-online"]
     return client.post("/sso/callback", data={"state": query["state"][0], "token": token or issue(sub)})
+
+
+def new_account(client, sub):
+    """Log in as portfolio account sub for the first time and make a new account for it."""
+    portfolio_login(client, sub)
+    return post(client, "/link-account", action="new")
 
 
 def username(client):
@@ -54,10 +61,9 @@ def test_first_login_asks_before_making_an_account(portfolio, app):
 
 def test_a_new_account_is_shared_by_every_device(portfolio, app):
     phone = app.test_client()
-    portfolio_login(phone, "1")
-    res = post(phone, "/link-account", action="new")
-    assert res.status_code == 302 and res.location.endswith("/character/new")
-    res = post(phone, "/character/new", name="Ava", department="Engineering", job="Engineer")
+    res = new_account(phone, "1")
+    assert res.status_code == 302 and res.location.endswith("/")
+    res = start_round(phone, name="Ava", job="Engineer")
     assert res.status_code == 302 and res.location.endswith("/play")
 
     laptop = app.test_client()
@@ -70,7 +76,7 @@ def test_a_new_account_is_shared_by_every_device(portfolio, app):
 def test_an_existing_account_can_be_linked_once(portfolio, app):
     laptop = app.test_client()
     register(laptop, "pilot")
-    create_character(laptop)
+    start_round(laptop)
 
     phone = app.test_client()
     portfolio_login(phone, "3")
@@ -94,8 +100,7 @@ def test_an_existing_account_can_be_linked_once(portfolio, app):
 def test_a_taken_name_gets_a_number(portfolio, app):
     register(app.test_client(), "player2")
     client = app.test_client()
-    portfolio_login(client, "2")
-    post(client, "/link-account", action="new")
+    new_account(client, "2")
     assert username(client) == "player22"
 
 
@@ -111,8 +116,7 @@ def test_cancel_and_no_waiting_login(portfolio, app):
 
 def test_portfolio_accounts_have_no_usable_password(portfolio, app):
     client = app.test_client()
-    portfolio_login(client, "6")
-    post(client, "/link-account", action="new")
+    new_account(client, "6")
     post(client, "/logout")
     res = post(client, "/login", username="player6", password="")
     assert res.status_code == 200 and b"Incorrect username or password" in res.data
@@ -120,19 +124,16 @@ def test_portfolio_accounts_have_no_usable_password(portfolio, app):
 
 def test_a_linked_account_returns_to_the_page_it_came_from(portfolio, app):
     client = app.test_client()
-    portfolio_login(client, "7")
-    post(client, "/link-account", action="new")
+    new_account(client, "7")
     post(client, "/logout")
 
-    query = parse_qs(urlsplit(client.get("/sso/login?next=/play").location).query)
-    res = client.post("/sso/callback", data={"state": query["state"][0], "token": issue("7")})
+    res = portfolio_login(client, "7", next_path="/play")
     assert res.status_code == 302 and res.location == "/play"
     assert username(client) == "player7"
 
 
 def test_a_first_login_ignores_next(portfolio, client):
-    query = parse_qs(urlsplit(client.get("/sso/login?next=/play").location).query)
-    res = client.post("/sso/callback", data={"state": query["state"][0], "token": issue("8")})
+    res = portfolio_login(client, "8", next_path="/play")
     assert res.status_code == 302 and res.location.endswith("/link-account")
 
 

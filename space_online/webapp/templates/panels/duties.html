@@ -1,0 +1,16 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Duties: " ~ p.job) }}
+<div class="text-block" data-scroll-key="duties">
+  {% for duty in p.duties %}
+    <p class="note">{{ duty.summary }}<br><span class="note-time">{{ duty.left }} left</span></p>
+    {% if duty.answer %}
+    <div class="button-row">
+      {{ ui.btn("Approve", "panel.approve_request", {"duty_id": duty.id}, "btn-small") }}
+      {{ ui.btn("Deny", "panel.deny_request", {"duty_id": duty.id}, "btn-small") }}
+    </div>
+    {% endif %}
+  {% else %}
+    <p>Nothing is waiting on you right now. Your job will bring you something to do before long.</p>
+  {% endfor %}
+</div>
+<p class="center">This shift: {{ p.done }} done, {{ p.missed }} missed.</p>

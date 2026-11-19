@@ -1,0 +1,61 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set e = facts.events %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You work the station's science labs. Each shift you are posted to one of them, and the first line of the station
+  log says which. NPC Scientists hold the others. You can work every science station and lock and unlock every science
+  lab door, but the work of your own lab is yours: no NPC does it for you.
+</p>
+<ul>
+  <li><b>Chemistry Lab</b>: mix compounds at the chemical dispenser, break items down in the processor, look formulas
+    up in the formula book, and send remedies to MedBay. Posted here, MedBay only has the remedies you send it. See
+    {{ w.link("Chemistry") }} and {{ w.link("Station Stores") }}.</li>
+  <li><b>Research Lab</b>: in the Artifact Section you find out what alien artifacts are and what sets them off, and
+    in the Teleporter Room you run the teleporter once you have worked out this shift's numbers for it. See
+    {{ w.link("Research") }}.</li>
+  <li><b>Atmospherics</b>: fill canisters at the gas dispenser, move gas between canisters and Gas Tanks, heat and
+    cool it, and burn mixes in the combustion chamber to see what they do. Posted here, you also look after the
+    station's air: the life support reservoir and the Air Monitor. See {{ w.link("Atmospherics") }}.</li>
+</ul>
+
+<h2>Job events</h2>
+<p>Your job events come from the lab you are posted to.</p>
+<ul>
+  <li><b>Compound Request</b> (Chemistry Lab): a crew member asks for a compound, such as the Doctor wanting a burn
+    salve. Mix it and press <b>Deliver</b> in their room while they're on duty, for
+    {{ e.ITEM_REQUEST_MIN_REWARD }}-{{ e.ITEM_REQUEST_MAX_REWARD }} credits.</li>
+  <li><b>Artifact Delivery</b> (Research Lab): Central Command sends an artifact up to the bench. Work out what it is
+    and what sets it off, and file the analysis for {{ facts.research.ANALYSIS_REWARD }} credits. None comes while
+    the bench is full.</li>
+  <li><b>Gas Request</b> (Atmospherics): the Doctor wants a Gas Tank of Oxygen, the Engineer one of Nitrogen, or the
+    Botanist one of Carbon Dioxide. Fill a tank at the Canister Rack, at least {{ (facts.atmos.REQUEST_PURITY * 100)|round|int }}%
+    that gas and {{ facts.atmos.REQUEST_PRESSURE|int }} kPa, and press <b>Deliver</b> in their room while they're on
+    duty, for {{ e.ITEM_REQUEST_MIN_REWARD }}-{{ e.ITEM_REQUEST_MAX_REWARD }} credits.</li>
+  <li><b>Bomb Test</b> (Atmospherics): Central Command wants a Small, Medium or Large blast tested. Build a transfer
+    valve bomb of that size and run it on the Test Range, for
+    {% for size, credits in facts.bombs.RANGE_BOUNTY.items() %}{{ credits }}{{ ", " if not loop.last }}{% endfor %}
+    credits by size. See {{ w.link("Atmospherics") }}.</li>
+</ul>
+<p>See {{ w.link("Duties and Job Events") }}.</p>
+
+<h2>Tips</h2>
+<ul>
+  <li>Several compounds need things the dispenser doesn't have. Aloe and produce come from {{ w.link("Botany") }},
+    spirits and juice from the {{ w.link("Bar") }}, and iron ore from the Miner in the {{ w.link("Mining") }} Bay.</li>
+  <li>Aloe Extract, Starch, Ethanol, Fruit Acid and Iron Powder come from putting other items through the processor
+    or into the dispenser. The {{ w.link("Chemistry") }} page lists what turns into what.</li>
+  <li>Miracle Grow needs nothing but the dispenser, so it's the quickest request to fill.</li>
+  <li>Try each rig at a low strength first. Only the right one gets any reaction, and a low strength can't overload
+    the artifact.</li>
+  <li>You can only tell what an artifact is once it has come alive, so set it off before you file.</li>
+  <li>Calibrate the teleporter early: two beacon sends give you both formulas. After that the whole station is one
+    step away, and a Healer or a Warper in your pocket is worth keeping.</li>
+  <li>The Tank Rack in Atmospherics hands out an empty Gas Tank whenever you aren't carrying one, so drop or deliver
+    a full one before you take another.</li>
+  <li>Your PDA reads an item's chemistry, and the gauge of a Gas Tank. Posted to the Chemistry Lab, it also messages you when MedBay is nearly out
+    of remedies. Posted to Atmospherics, it messages you when the air goes bad or the reservoir runs low. See
+    {{ w.link("PDA") }}.</li>
+</ul>
+{% endblock %}

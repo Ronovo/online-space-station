@@ -4,13 +4,13 @@
 {% block page %}
 <h2>What you do</h2>
 <p>
-  Staff Assistants have no station of their own. You go where you're needed, run errands for the department crew, and
+  Staff Assistants have no station of their own. You go where you're needed, do duties for the department crew, and
   use what every room offers visitors.
 </p>
 
 <h2>Job requests</h2>
 <p>
-  Your job events are requests from department crew. Each one is an errand paying {{ e.ERRAND_MIN_REWARD }}-{{ e.ERRAND_MAX_REWARD }}
+  Your job events are requests from department crew. Each one is a duty paying {{ e.ERRAND_MIN_REWARD }}-{{ e.ERRAND_MAX_REWARD }}
   credits, and you only get requests from crew who are aboard:
 </p>
 <ul>
@@ -18,18 +18,18 @@
   <li>{{ request.request }}
     {% if request.kind == "deliver" %}Bring {{ "the item" if request.item else "a piece of produce" }} to the
       {{ request.giver }} and press <b>Deliver</b>.
-    {% else %}Go to the {{ request.giver }}'s room and press <b>Help Out</b>.{% endif %}
+    {% else %}Go to the {{ request.giver }}'s room and press the <b>Help</b> button.{% endif %}
   </li>
   {% endfor %}
 </ul>
 <p>
   The Medkit for the Doctor starts in your locker, and produce for the Bartender can be bought at the Botanist's
-  produce stand. See {{ w.link("Errands and Job Events") }}.
+  produce stand. See {{ w.link("Duties and Job Events") }}.
 </p>
 
 <h2>Ways to earn</h2>
 <ul>
-  <li>Errands.</li>
+  <li>Duties.</li>
   <li>Trading shares on the {{ w.link("Stock Market") }}.</li>
   <li>Asking the Head of Personnel for a different job from the Access Control terminal on the Bridge. See
     {{ w.link("Bridge and Personnel") }}.</li>

@@ -1,24 +1,21 @@
 """Captain's Station Status: aggregate live station data for the briefing panel."""
 
+from space_online.game.helper_methods import gas_mix
 from space_online.game.helper_methods.health_bands import health_band, overall_health
-from space_online.game.helper_methods.door_control import SPECIAL_ROOM_DOORS
-from space_online.game.helper_methods.errands import pending_errand
+from space_online.game.helper_methods.antagonists import alert_level, sightings
+from space_online.game.helper_methods.rounds import shuttle_status
 from space_online.game.helper_methods.game_clock import format_elapsed, get_elapsed_seconds
-from space_online.game.helper_methods.npc_movement import has_post
-from space_online.game.helper_methods.oxygen_helper import DAMAGE_THRESHOLD_LEVEL, WARNING_THRESHOLDS
-from space_online.game.helper_methods.power_constants import BATTERY_BAND_COLORS, battery_band
+from space_online.game.helper_methods.hazards import HAZARDS, hazard_rooms
+from space_online.game.helper_methods.npc_movement import can_work, is_posted
+from space_online.game.helper_methods.oxygen_helper import WARNING_THRESHOLDS
+from space_online.game.helper_methods.power_constants import BATTERY_BAND_COLORS, SYSTEM_NAMES, battery_band
+from space_online.game.helper_methods.station_air import air_threat, reservoir_share
+from space_online.game.objects.gases import STATION_AIR
 from space_online.game.helper_methods.ui_panels import register_panel
 from space_online.game.maps import donut
 from space_online.game.objects.botany_items import GROWTH_STAGES, refresh_all_planters_growth
 
 OXYGEN_STRESS_THRESHOLD = WARNING_THRESHOLDS[0]
-
-SYSTEM_DISPLAY = (
-    ("life_support", "Life Support"),
-    ("hallway_lighting", "Hallway Lighting"),
-    ("security_systems", "Security Systems"),
-    ("communication_array", "Comm Array"),
-)
 
 OVERALL_COLORS = {
     "NOMINAL": "#00FF00",
@@ -28,16 +25,16 @@ OVERALL_COLORS = {
 
 
 def crew_health_status(member):
-    """(Healthy / Injured / Critical, colour) for a crew member's overall health."""
+    """(Healthy / Minor injuries / Injured / Critical, colour) for a crew member's overall health."""
     return health_band(overall_health(member))
 
 
-def _is_on_duty(member):
-    """Posted NPCs use on_duty; others count as on duty unless jailed."""
-    if member.get("in_jail"):
+def _is_on_duty(member, player_data):
+    """Posted NPCs are on duty at their post; everyone else is unless they are jailed or too hurt to work."""
+    if not can_work(member):
         return False
-    if has_post(member):
-        return bool(member.get("on_duty", True))
+    if member is not player_data and is_posted(member):
+        return member["on_duty"]
     return True
 
 
@@ -46,19 +43,13 @@ def collect_station_status(player_data, station_crew):
     power = player_data["station_power"]
     system_levels = power["system_levels"]
     battery_level = float(power.get("battery_level", 0) or 0)
-    life_support = int(system_levels.get("life_support", 0) or 0)
     band = battery_band(battery_level)
-
-    if life_support <= 0:
-        oxygen_threat = "emergency"
-    elif life_support <= DAMAGE_THRESHOLD_LEVEL:
-        oxygen_threat = "damaging"
-    else:
-        oxygen_threat = "safe"
+    atmos = player_data["atmos"]
+    oxygen_threat = air_threat(atmos["air"])
 
     systems = []
     faulted = []
-    for key, label in SYSTEM_DISPLAY:
+    for key, label in SYSTEM_NAMES.items():
         level = int(system_levels.get(key, 0) or 0)
         online = level > 0
         if key in power["faults"]:
@@ -69,18 +60,20 @@ def collect_station_status(player_data, station_crew):
         systems.append({"name": label, "level": level, "status": status, "status_color": color})
 
     all_crew = [player_data] + list(station_crew)
-    healthy = injured = critical = oxygen_stress = on_duty = away = 0
+    healthy = minor = injured = critical = oxygen_stress = on_duty = away = 0
     for member in all_crew:
         status = crew_health_status(member)[0]
         if status == "Healthy":
             healthy += 1
+        elif status == "Minor injuries":
+            minor += 1
         elif status == "Injured":
             injured += 1
         else:
             critical += 1
         if member["damage"]["oxygen"] >= OXYGEN_STRESS_THRESHOLD:
             oxygen_stress += 1
-        if _is_on_duty(member):
+        if _is_on_duty(member, player_data):
             on_duty += 1
         else:
             away += 1
@@ -110,12 +103,8 @@ def collect_station_status(player_data, station_crew):
     security_details = wanted_details + jailed_details + fine_details
     security_online = int(system_levels.get("security_systems", 0) or 0) > 0
 
-    ship_map = player_data.get("ship_map") or donut.SHIP_MAP
-    locked_rooms = []
-    for door_key, door_info in SPECIAL_ROOM_DOORS.items():
-        tile = ship_map.get(door_key) or {}
-        if tile.get("locked"):
-            locked_rooms.append(door_info["room_name"])
+    ship_map = player_data["ship_map"]
+    locked_rooms = [donut.ROOMS[key].name for key in donut.LOCKABLE_ROOM_KEYS if ship_map[key]["locked"]]
 
     elapsed_seconds = get_elapsed_seconds(player_data)
     planters = refresh_all_planters_growth(player_data, elapsed_seconds)
@@ -125,7 +114,8 @@ def collect_station_status(player_data, station_crew):
     botany_dead = sum(1 for p in planters if p["occupied"] and p["dead"])
     botany_thirsty = sum(
         1 for p in planters
-        if p["occupied"] and not p["dead"] and p["growth_stage"] < GROWTH_STAGES and not p["watered"]
+        if p["occupied"] and not p["tended_by"] and not p["dead"] and p["growth_stage"] < GROWTH_STAGES
+        and not p["watered"]
     )
 
     market = player_data["stock_market"]
@@ -136,9 +126,9 @@ def collect_station_status(player_data, station_crew):
 
     alerts = []
     if oxygen_threat == "emergency":
-        alerts.append({"text": "Life Support offline: oxygen emergency active", "severity": "critical"})
+        alerts.append({"text": "Station air unbreathable: breathing emergency active", "severity": "critical"})
     elif oxygen_threat == "damaging":
-        alerts.append({"text": f"Life Support degraded (Lv {life_support}): oxygen damage active", "severity": "caution"})
+        alerts.append({"text": "Station air unhealthy: breathing damage active", "severity": "caution"})
 
     if band in ("outage", "critical"):
         alerts.append({"text": f"Battery critical ({battery_level:.0f}%)", "severity": "critical"})
@@ -206,9 +196,21 @@ def collect_station_status(player_data, station_crew):
             }
         )
 
-    errand = pending_errand(player_data)
-    if errand:
-        alerts.append({"text": f"Pending errand: {errand['summary']}", "severity": "caution"})
+    hazards = hazard_rooms(player_data)
+    alerts.extend({"text": f"{HAZARDS[kind]['name'].capitalize()} in the {donut.ROOMS[key].name}",
+                   "severity": "critical"} for key, kind in hazards)
+
+    level, _ = alert_level(player_data)
+    if level != "Green":
+        severity = "critical" if level == "Red" else "caution"
+        alerts.append({"text": f"Station alert level: {level}", "severity": severity})
+        alerts.extend({"text": sighting, "severity": severity} for sighting in sightings(player_data))
+    shuttle = shuttle_status(player_data)
+    if shuttle:
+        alerts.append({"text": f"Crew shuttle: {shuttle}", "severity": "caution"})
+
+    duties = player_data["duties"]
+    alerts.extend({"text": f"Duty waiting: {duty['summary']}", "severity": "caution"} for duty in duties)
     if faulted:
         alerts.append({"text": f"System fault: {', '.join(faulted)}", "severity": "caution"})
     if botany_thirsty:
@@ -222,6 +224,7 @@ def collect_station_status(player_data, station_crew):
         or oxygen_threat == "emergency"
         or critical > 0
         or emergency_announcements
+        or hazards
     ):
         overall = "CRITICAL"
     elif (
@@ -233,7 +236,7 @@ def collect_station_status(player_data, station_crew):
         or wanted_details
         or jailed_details
         or access_request
-        or errand
+        or duties
         or faulted
         or botany_thirsty
         or botany_dead
@@ -255,12 +258,18 @@ def collect_station_status(player_data, station_crew):
             "power_mode": power.get("power_mode") or "balanced",
             "systems": systems,
             "oxygen_threat": oxygen_threat,
+            "air": {
+                "oxygen": 100 * gas_mix.fractions(atmos["air"]).get("Oxygen", 0),
+                "pressure": gas_mix.pressure(atmos["air"], STATION_AIR["volume"]),
+                "reservoir": 100 * reservoir_share(atmos["reservoir"]),
+            },
         },
         "crew": {
             "complement": len(all_crew),
             "on_duty": on_duty,
             "away": away,
             "healthy": healthy,
+            "minor": minor,
             "injured": injured,
             "critical": critical,
             "oxygen_stress": oxygen_stress,
@@ -274,6 +283,7 @@ def collect_station_status(player_data, station_crew):
             "security_systems_online": security_online,
         },
         "facilities": {
+            "stores": player_data["stores"],
             "locked_rooms": locked_rooms,
             "botany_occupied": botany_occupied,
             "botany_total": botany_total,
@@ -286,5 +296,4 @@ def collect_station_status(player_data, station_crew):
 
 @register_panel("station_status", "Station Status")
 def station_status_panel(game, state):
-    status = collect_station_status(game.player_data, game.station_crew)
-    return status
+    return collect_station_status(game.player_data, game.station_crew)

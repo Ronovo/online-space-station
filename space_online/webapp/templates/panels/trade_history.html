@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Trade History</h2>
+{{ ui.panel_header("Trade History") }}
 <div class="text-block" data-scroll-key="trades">
   {% if p.entries is none %}
     <p>No trade history available.</p>
@@ -19,4 +19,3 @@
     {% endfor %}
   {% endif %}
 </div>
-<div class="button-row">{{ ui.close_btn() }}</div>

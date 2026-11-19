@@ -1,0 +1,226 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set g = facts.gases %}
+{% set a = facts.atmos %}
+{% set air = facts.air %}
+{% block page %}
+<p>
+  Atmospherics is the north door of the Science Hall, which also leads to {{ w.link("Chemistry") }} and the
+  {{ w.link("Research") }} Lab. It holds the station's gas canisters, a gas dispenser,
+  a heater/freezer, a combustion chamber, and the life support reservoir that feeds the station's air. Scientists, the Head of Personnel and the Captain can work the Atmospherics
+  Station. See {{ w.link("Scientist") }}. Visitors can talk to the Scientist posted here.
+</p>
+
+<h2>Gases</h2>
+<p>
+  Every gauge reads a pressure in kPa, a temperature in kelvin, and each gas as a share of the whole. Pressure goes up
+  with the amount of gas (in mol) and with its temperature. Mixing two gases settles at a temperature between theirs,
+  weighted by how much heat each holds.
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Gas</th><th>Role</th><th>Heat capacity (J per mol per K)</th><th>Lights on its own at</th></tr></thead>
+  <tbody>
+    {% for name, gas in g.GASES.items() %}
+    <tr><td>{{ name }}</td><td>{{ gas.role }}</td><td>{{ gas.heat_capacity }}</td>
+      <td>{{ gas.ignition ~ " K" if gas.ignition else "-" }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<ul>
+  <li>A fuel burns with an oxidizer, two parts fuel to three parts oxidizer, and turns into Carbon Dioxide and heat. A
+    spark lights it at any temperature; without one it only lights once it is hot enough. Nitrous Oxide is a weaker
+    oxidizer than Oxygen.</li>
+  <li>A gas with a high heat capacity takes more heat to warm, so Nitrogen and Carbon Dioxide in a mix soak up some of
+    a burn's heat.</li>
+  <li>Breathable air is {% for name, share in g.AIR.items() %}{{ (share * 100)|round|int }}% {{ name }}{{ " and " if not loop.last }}{% endfor %}.</li>
+</ul>
+
+<h2>The Canister Rack</h2>
+<p>
+  The rack has {{ a.CANISTER_SLOTS }} slots. Each canister holds {{ g.CANISTER.volume }} L and is rated to
+  {{ g.CANISTER.rated }} kPa. A shift starts with these, each at {{ a.CANISTER_FILL }} kPa and room temperature:
+</p>
+<ul>
+  {% for fractions in a.STARTING_CANISTERS %}
+  <li>Canister {{ loop.index }}: {% if fractions %}{% for name, share in fractions.items() %}{{ (share * 100)|round|int }}% {{ name }}{{ ", " if not loop.last }}{% endfor %}{% else %}empty{% endif %}</li>
+  {% endfor %}
+</ul>
+<p>Pick a canister to read its gauge. Then:</p>
+<ul>
+  <li><b>Transfer</b> an amount in mol into another canister.</li>
+  <li><b>Fill the Tank</b> from it, into a Gas Tank you carry, or <b>Empty the Tank into the Canister</b>. A tank won't
+    be filled past its rated pressure.</li>
+  <li><b>Vent to Space</b> empties it.</li>
+  <li><b>Send to Engineering</b> sends it down the tube into a free slot of the Combustion Engine's canister bay, where
+    the Engineer burns it. A canister on a port has to be disconnected first. See {{ w.link("Engineering") }}.</li>
+  <li><b>Port</b>: connect it to the {{ a.PORTS.chamber }}, which feeds the combustion chamber, or the
+    {{ a.PORTS.reservoir }}, which reaches the life support reservoir. One canister fits on a port; connecting another
+    takes the first one off.</li>
+  <li><b>Heater / Freezer</b>: set a target from {{ a.HEATER_RANGE[0] }} K to {{ a.HEATER_RANGE[1] }} K and switch it
+    on. It moves the canister's temperature toward the target by {{ a.HEATER_WATTS // 1000 }} kW, so a full canister
+    takes longer than a nearly empty one. There is one heater/freezer: switching it on for a canister takes it off any
+    other.</li>
+</ul>
+<p>
+  A canister pushed past its rated pressure ruptures. Its gas is lost, Atmospherics gets a fire if the gas held a fuel
+  and an oxidizer or a hull breach if it didn't, and the blast takes {{ a.RUPTURE_DAMAGE }}% off a limb of anyone in the
+  room. Heating a canister of fuel and oxidizer until the fuel lights sets it burning inside the canister, which can
+  rupture it. See {{ w.link("Hazards") }}.
+</p>
+<p>
+  Canisters are never carried. They travel by tube: from the Cargo Bay to the rack, and between the rack and the
+  Combustion Engine's bay in the Engineering Bay.
+</p>
+
+<h2>The Gas Dispenser</h2>
+<p>
+  Pick a gas and a canister, set an amount in mol, and dispense. The gas goes in pure at room temperature. The panel
+  shows the canister's gauge now and after, and won't dispense past its rated pressure.
+</p>
+<ul>
+  <li>{% for name in g.GASES if name not in g.DANGEROUS_GASES %}{{ name }}{{ ", " if not loop.last }}{% endfor %}: free and
+    unlimited.</li>
+  <li>{{ g.DANGEROUS_GASES|join(", ") }}: {{ a.DISPENSER_STOCK }} mol of each a shift, about two canisters' worth. The
+    panel shows what is left.</li>
+</ul>
+<p>
+  More of the dangerous gases can be ordered from Central Command on the Order Console, as a full canister. It comes
+  down the tube from the Cargo Bay into an empty slot on the rack, or waits there until one is free. Every order goes
+  in the Incident Log, and ordering too many can put out a warrant for you. See {{ w.link("Cargo") }}.
+</p>
+
+<h2>The Combustion Chamber</h2>
+<p>
+  A sealed chamber of {{ a.CHAMBER.volume }} L, rated to {{ a.CHAMBER.rated }} kPa, for burning a mix to see what it
+  does.
+</p>
+<ul>
+  <li><b>Inject</b> an amount in mol from the canister on the {{ a.PORTS.chamber }}.</li>
+  <li><b>Igniter</b>: a spark. It lights the chamber if there is a fuel and an oxidizer in it.</li>
+  <li>A burn goes on until nothing more reacts. The log then gives its peak temperature and pressure, so you can
+    compare one mix with the last.</li>
+  <li><b>Pump Out</b> all of the chamber's gas, hot as it is, into a canister you pick. This is how you get hot Carbon
+    Dioxide or leftover hot fuel into a canister.</li>
+  <li><b>Vent to Space</b> empties the chamber and puts out the fire.</li>
+  <li>Past its rated pressure the chamber ruptures, like a canister.</li>
+</ul>
+
+<h2>The Reservoir</h2>
+<p>
+  Life support pumps the station's air from the reservoir: {{ g.RESERVOIR.volume }} L, rated to
+  {{ g.RESERVOIR.rated }} kPa. What it does to the air is on {{ w.link("Life Support") }}.
+</p>
+<ul>
+  <li>The panel reads its gauge and how full it is.</li>
+  <li><b>Pump In</b> an amount in mol from the canister on the {{ a.PORTS.reservoir }}: air to top it up, Oxygen to
+    enrich it, or something that hurts the station. It won't pump past the reservoir's rated pressure.</li>
+  <li><b>Draw Off</b> an amount into that canister, for instance to get a contaminant back out. A canister pushed past
+    its rating ruptures.</li>
+</ul>
+
+<h2>The Air Monitor</h2>
+<ul>
+  <li>Reads the station's air, and how it stands against each breathing limit: OK, Low, Rich or Dangerous.</li>
+  <li>Shows the life support level and how fast the pump refills the air at it.</li>
+  <li><b>Vent the Station</b> dumps {{ (air.VENT_SHARE * 100)|round|int }}% of the station's air to space, the way to
+    clear a contaminant out of it. It asks first: everyone breathes thin air until the pump refills it from the
+    reservoir, and at low life support that can kill.</li>
+</ul>
+
+<h2>The Scientist on post</h2>
+<p>
+  Every {{ facts.work.ATMOSPHERICS_WORK_SECONDS }} seconds the Scientist posted here deals with one thing: a reservoir
+  with more than {{ (air.RESERVOIR_TRACE * 100)|round(1) }}% of something other than air in it, which they flush with
+  {{ air.UPKEEP_MOLES|round|int }} mol of fresh air, then a contaminant in the station's air, which they vent, then a
+  reservoir under {{ (air.RESERVOIR_LOW * 100)|round|int }}% full, which they top up, then a canister on one of the
+  Combustion Engine's lines that is down to under {{ facts.engine.LOW_MOLES|round|int }} mol with no spare waiting in
+  the engine's bay, for which they fill a canister on the rack with Hydrogen or Oxygen from the Gas Dispenser and send
+  it down the tube. They pick the emptiest canister that holds nothing but that gas, often one the Engineer sent back,
+  and Hydrogen comes out of the shift's stock, so with the stock run down nothing goes. If you hold the post, it
+  is yours: your PDA messages you when the air goes bad or the reservoir runs low.
+</p>
+
+<h2>Gas Tanks and the Gas Analyzer</h2>
+<ul>
+  <li>The <b>Tank Rack</b> at the Atmospherics Station hands out an empty Gas Tank and a Gas Analyzer, if you aren't
+    carrying one already.</li>
+  <li>A <b>Gas Tank</b> holds {{ g.GAS_TANK.volume }} L and is rated to {{ g.GAS_TANK.rated }} kPa. Examining it reads
+    its pressure. What is in it takes the Gas Analyzer, or a Scientist's PDA.</li>
+  <li>Open a tank's valve and hold it in a hand to breathe from it. See {{ w.link("Life Support") }}.</li>
+  <li>Use the <b>Gas Analyzer</b> to read the station's air and every Gas Tank you carry or hold. The fabricator
+    in the {{ w.link("Engineering") }} Bay makes more for {{ facts.fabrication_ore["Gas Analyzer"] }} ore.</li>
+</ul>
+
+{% set b = facts.bombs %}
+<h2>Transfer valve bombs</h2>
+<p>
+  A Tank Transfer Valve joins two Gas Tanks. Opening it pours their gas together, and a fuel that is already hot
+  enough to light burns with the oxidizer on the other side. The burn's heat drives the pressure past the tanks'
+  rating, and they burst. The same gas rules as the canisters and the combustion chamber decide everything.
+</p>
+<ul>
+  <li><b>Getting a valve</b>: the Tank Rack hands out one free valve a shift. The fabricator in the
+    {{ w.link("Engineering") }} Bay makes more for {{ facts.fabrication_ore["Tank Transfer Valve"] }} ore.</li>
+  <li><b>Putting one together</b>: use the valve, pick two Gas Tanks you carry (the list shows their pressure), and
+    Assemble. The valve and both tanks become one Transfer Valve Bomb. Using the bomb opens the same panel, where
+    <b>Take Apart</b> gives the valve and both tanks back, gas and all, as long as it isn't armed.</li>
+  <li>Examining a bomb reads both tanks' pressure. The Gas Analyzer reads what is in each side.</li>
+  <li><b>One side has to be hot.</b> There is no spark: the fuel only lights if the gas, once mixed, is at its ignition
+    temperature. Plasma lights at {{ g.GASES.Plasma.ignition }} K, so heat the Plasma well past that on the heater/freezer
+    before you fill its tank, and put Oxygen in the other. Two cold tanks only mix.</li>
+  <li>More gas at the clean ratio of two parts fuel to three parts oxidizer makes a bigger blast. Nitrogen or Carbon
+    Dioxide in the mix soaks up heat and makes it smaller.</li>
+</ul>
+
+<h3>Blast sizes</h3>
+<p>The blast is graded by how many times the tanks' rated {{ g.GAS_TANK.rated }} kPa the gas reaches once it has burned:</p>
+<table class="wiki-table">
+  <thead><tr><th>Blast</th><th>Reaches</th><th>The room</th><th>You, if you're there</th><th>Crew there</th>
+    <th>A revealed antagonist there</th></tr></thead>
+  <tbody>
+    {% for size, times in b.BLAST_SIZES|reverse %}
+    <tr><td>{{ size }}</td>
+      <td>{{ "under " ~ b.BLAST_SIZES[-2][1] ~ "x" if size == "Dud" else times ~ "x or more" }}</td>
+      <td>{{ {"Dud": "Nothing; the gas hisses into the station's air", "Small": "A fire", "Medium": "A fire",
+             "Large": "A hull breach"}[size] }}</td>
+      <td>{% if size == "Large" %}Killed, or burn {{ b.PLAYER_HARM.Large[0] }}% and a limb {{ b.PLAYER_HARM.Large[1] }}% in
+        a Peaceful round{% elif size == "Dud" %}Burn {{ b.PLAYER_HARM.Dud[0] }}% if the gas is {{ b.DUD_HOT_TEMP }} K or
+        hotter{% else %}Burn {{ b.PLAYER_HARM[size][0] }}%, a limb {{ b.PLAYER_HARM[size][1] }}%{% endif %}</td>
+      <td>{% if size == "Large" %}Killed{% elif size == "Dud" %}Nothing{% else %}{{ ((("burn " ~ b.CREW_HARM[size][0] ~ "%, ") if b.CREW_HARM[size][0] else "")
+        ~ "a limb " ~ b.CREW_HARM[size][1] ~ "%")|capitalize }}{% endif %}</td>
+      <td>{% if size == "Dud" %}Nothing{% elif size == "Large" %}Destroyed{% else %}Loses
+        {{ (b.THREAT_HIT[size] * 100)|round|int }}% of its full health{% endif %}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<ul>
+  <li>A blast on a hallway tile starts no hazard: it only hits whoever is on that tile. See {{ w.link("Hazards") }}.</li>
+  <li>A Dud leaves the valve and its two empty tanks where it went off.</li>
+</ul>
+
+<h3>Setting one off</h3>
+<ul>
+  <li><b>Open Transfer Valve</b> sets it off in your hands, after you confirm.</li>
+  <li><b>Set Timer</b>: {{ b.TIMER_SECONDS|join(", ") }} seconds. Drop it and walk away; it goes off where it lies,
+    or wherever you are if you still carry it. The floor shows the seconds left. Anyone can pick an armed bomb up and
+    <b>Disarm</b> it before then. The {{ w.link("Research") }} teleporter can send one anywhere.</li>
+  <li>A bomb you set off on the station while no revealed antagonist is loose is an unauthorized detonation, a Dud
+    included: a warrant goes out for you. With one loose it is no crime, wherever it goes off. See
+    {{ w.link("Security and Jail") }}.</li>
+  <li>A Traitor may plant one. See {{ w.link("Antagonists") }}.</li>
+</ul>
+
+<h3>The Test Range</h3>
+<p>
+  The Test Range at the Atmospherics Station sets a bomb you carry off safely and reads out its peak temperature, peak
+  pressure and blast size. Nothing on the station is harmed, and it is never a crime. The bomb is used up: the valve
+  and both tanks come back empty. The panel keeps the last {{ b.MAX_RANGE_LOG }} tests.
+</p>
+<ul>
+  <li>Central Command pays a bounty for the first test of each size in a shift:
+    {% for size, credits in b.RANGE_BOUNTY.items() %}{{ size }} {{ credits }}{{ ", " if not loop.last }}{% endfor %}
+    credits. A Dud pays nothing.</li>
+  <li>A Scientist posted here is sometimes asked for a test of one size. Running a bomb of that size on the range does
+    the duty and pays the bounty's amount again.</li>
+</ul>
+{% endblock %}

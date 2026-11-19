@@ -1,0 +1,14 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Broadcast", "Back to PDA") }}
+<p class="center">Speak to the whole station. It goes out through the Communication Array.</p>
+<div class="stack">
+  {% for preset in p.presets %}{{ ui.btn(preset, "panel.send", {"text": preset}, "btn-wide") }}{% endfor %}
+</div>
+<form class="form-stack narrow-form" data-action="panel.send">
+  <label for="broadcast-text">Or say it in your own words:</label>
+  <input id="broadcast-text" name="text" type="text" maxlength="{{ p.max }}">
+  {{ ui.feedback(p.feedback) }}
+  <div class="button-row">
+    <button type="submit" class="btn">Send</button>
+  </div>
+</form>

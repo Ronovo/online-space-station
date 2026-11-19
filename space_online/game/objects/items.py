@@ -1,16 +1,29 @@
-
 import copy
-from space_online.game.helper_methods.health_bands import DAMAGE_TYPES, LIMBS, change_limb, limb_label, reduce_damage
 import uuid
 
-from space_online.game.helper_methods.ui_panels import choice_handler, panel_action, register_panel
+from space_online.game.helper_methods import gas_mix
+from space_online.game.helper_methods.artifacts import ARTIFACT_ID, is_usable_artifact, use_artifact
+from space_online.game.helper_methods.errands import with_article
+from space_online.game.helper_methods.health_bands import LIMBS, change_limb, limb_label, reduce_damage
+from space_online.game.helper_methods.needs import DEFAULT_FEEDS, DEFAULT_QUENCHES, satisfy
+from space_online.game.helper_methods.ui_panels import panel_action, register_panel
 from space_online.game.maps.donut import render_map_text
 from space_online.game.objects.botany_items import BOTANY_ITEMS
+from space_online.game.objects.chemicals import CHEMISTRY_ITEMS
 from space_online.game.objects.food import FOOD_ITEMS
+from space_online.game.objects.gases import GAS_TANK, STATION_AIR
+from space_online.game.objects.mining_items import MINING_ITEMS
+from space_online.game.objects.weapons import WEAPON_ITEMS
 
 # Tool IDs that fit inside a Basic Tools set (one of each).
 BASIC_TOOLKIT_TOOL_IDS = ("wrench", "screwdriver", "wirecutters")
-NON_STACKABLE_ITEM_IDS = frozenset({"basic_tools"})
+PDA_ID = "pda"
+GAS_TANK_ID = "gas_tank"
+GAS_ANALYZER_ID = "gas_analyzer"
+TRANSFER_VALVE_ID = "transfer_valve"
+BOMB_ID = "transfer_valve_bomb"
+NO_SCANNER = "Your PDA has no scanner for this."
+NON_STACKABLE_ITEM_IDS = frozenset({"basic_tools", ARTIFACT_ID})
 
 WELCOME_GUIDE_CONTENT = """WELCOME TO SPACE STATION EXPLORER
 
@@ -52,6 +65,7 @@ ALL_ITEMS = {
     "wirecutters": {
         "id": "wirecutters",
         "name": "Wirecutters",
+        "plural": True,
         "description": "Tool for cutting and stripping wires safely. Necessary for electrical work.",
         "category": "Tool",
         "attributes": {},
@@ -65,13 +79,66 @@ ALL_ITEMS = {
         "attributes": {},
         "actions": ["examine", "use", "drop"]
     },
+    "fire_extinguisher": {
+        "id": "fire_extinguisher",
+        "name": "Fire Extinguisher",
+        "description": "A red extinguisher. Puts out a fire in the room you are standing in.",
+        "category": "Tool",
+        "attributes": {"attack": 8},
+        "actions": ["examine", "equip", "drop"]
+    },
+    "gas_analyzer": {
+        "id": GAS_ANALYZER_ID,
+        "name": "Gas Analyzer",
+        "description": "A hand-held gas analyzer. Use it to read the air where you stand and every Gas Tank you carry.",
+        "category": "Tool",
+        "attributes": {},
+        "actions": ["examine", "use", "drop"]
+    },
+    "gas_tank": {
+        "id": GAS_TANK_ID,
+        "name": "Gas Tank",
+        "description": (f"A portable {GAS_TANK['volume']} L gas tank, rated to {GAS_TANK['rated']} kPa. Hold it in "
+                        "a hand with its valve open to breathe from it through the mask."),
+        "category": "Tool",
+        "attributes": {"contents": gas_mix.empty_mix(), "valve_open": False},
+        "actions": ["examine", "equip", "open_valve", "close_valve", "drop"]
+    },
+    "transfer_valve": {
+        "id": TRANSFER_VALVE_ID,
+        "name": "Tank Transfer Valve",
+        "description": "A valve that joins two Gas Tanks. Use it to fit two tanks you carry to it, which makes a "
+                       "Transfer Valve Bomb.",
+        "category": "Tool",
+        "attributes": {},
+        "actions": ["examine", "use", "drop"]
+    },
+    "transfer_valve_bomb": {
+        "id": BOMB_ID,
+        "name": "Transfer Valve Bomb",
+        "description": "Two Gas Tanks joined by a transfer valve. Opening the valve pours one tank's gas into the "
+                       "other's.",
+        "category": "Device",
+        "attributes": {"contents": [], "goes_off_at": None, "armed_by": None},
+        "actions": ["examine", "use", "open_transfer_valve", "set_timer", "disarm", "drop"]
+    },
      "basic_tools": {
         "id": "basic_tools",
         "name": "Basic Tools",
+        "plural": True,
         "description": "A set containing a small wrench, screwdriver, and wirecutters.",
         "category": "Tool",
         "attributes": {},
         "actions": ["examine", "use", "drop"]
+    },
+
+    "pda": {
+        "id": "pda",
+        "name": "PDA",
+        "description": "Your personal data assistant. Hold it in a hand to open it, or use it on an object to scan something related to your job.",
+        "category": "Device",
+        "attributes": {},
+        "actions": ["examine", "equip", "drop"]
     },
 
     # --- Books --- 
@@ -102,7 +169,7 @@ ALL_ITEMS = {
         "name": "Medkit",
         "description": "A standard first aid kit.",
         "category": "Healing",
-        "attributes": {},
+        "attributes": {"heals": {"limbs": 10, "burn": 10, "poison": 10, "oxygen": 10}},
         "actions": ["examine", "use", "drop"]
     },
     "aloe": {
@@ -117,6 +184,9 @@ ALL_ITEMS = {
 
 ALL_ITEMS.update(FOOD_ITEMS)
 ALL_ITEMS.update(BOTANY_ITEMS)
+ALL_ITEMS.update(CHEMISTRY_ITEMS)
+ALL_ITEMS.update(MINING_ITEMS)
+ALL_ITEMS.update(WEAPON_ITEMS)
 
 DEFAULT_LOCKER_ITEM_IDS = [
     "welcome_guide",
@@ -127,24 +197,13 @@ DEFAULT_LOCKER_ITEM_IDS = [
 ]
 
 
-def _default_basic_tools_contents():
-    """Fresh copies of the tools that ship inside a Basic Tools set."""
-    contents = []
-    for tool_id in BASIC_TOOLKIT_TOOL_IDS:
-        if tool_id in ALL_ITEMS:  # pragma: no branch - every Basic Tools tool is in the item data
-            contents.append(copy.deepcopy(ALL_ITEMS[tool_id]))
-    return contents
-
-
 def get_item_definition(item_id):
     """Returns a deep copy of the item definition from the master dictionary."""
     if item_id not in ALL_ITEMS:
         return None
     item = copy.deepcopy(ALL_ITEMS[item_id])
     if item_id == "basic_tools":
-        attrs = item.setdefault("attributes", {})
-        if "contents" not in attrs:  # pragma: no branch - the item data's Basic Tools never lists its contents
-            attrs["contents"] = _default_basic_tools_contents()
+        item["attributes"]["contents"] = [copy.deepcopy(ALL_ITEMS[tool_id]) for tool_id in BASIC_TOOLKIT_TOOL_IDS]
     return item
 
 
@@ -175,12 +234,12 @@ def _is_non_stackable(item):
     return "contents" in attrs
 
 
-def add_to_inventory(player_data, item):
-    """Add an item to inventory, stacking by id when possible.
+def stack_into(items, item):
+    """Add an item to a list of items, stacking by id when possible.
 
-    Returns the inventory entry that was updated or appended.
+    Returns the entry that was updated or appended.
     """
-    inventory = player_data["inventory"]
+    inventory = items
     item_copy = dict(item)
     if "attributes" in item:
         item_copy["attributes"] = copy.deepcopy(item["attributes"])
@@ -196,6 +255,16 @@ def add_to_inventory(player_data, item):
 
     inventory.append(item_copy)
     return item_copy
+
+
+def add_to_inventory(player_data, item):
+    """Add an item to the inventory. Returns the inventory entry that was updated or appended."""
+    return stack_into(player_data["inventory"], item)
+
+
+def inventory_index(player_data, item_id):
+    """The index of the first inventory entry with item_id, or None."""
+    return next((index for index, item in enumerate(player_data["inventory"]) if item.get("id") == item_id), None)
 
 
 def remove_one_from_inventory(player_data, index):
@@ -220,6 +289,38 @@ def build_default_locker_inventory():
 
 
 HAND_SIDES = (("left", "Left Hand"), ("right", "Right Hand"))
+
+
+def item_with_article(item):
+    """'a medkit', 'some emergency rations': an item's name in lower case after its article."""
+    name = item["name"].lower()
+    return f"some {name}" if item.get("plural") else with_article(name)
+
+
+def held_items(player_data):
+    """The items in the player's hands."""
+    return [player_data["hands"][side] for side, _ in HAND_SIDES if player_data["hands"][side]]
+
+
+def holding(player_data, item_id):
+    """Whether one of the player's hands holds this item."""
+    return any(item["id"] == item_id for item in held_items(player_data))
+
+
+def carried_or_held(player_data, item_ids):
+    """The first item in the inventory or a hand whose id is one of item_ids, or None."""
+    for item in player_data["inventory"] + held_items(player_data):
+        if item.get("id") in item_ids:
+            return item
+    return None
+
+
+def has_tool(player_data, tool_id):
+    """Whether the player has a tool to hand: carried, held, or still inside a Basic Tools set they carry."""
+    if carried_or_held(player_data, (tool_id,)):
+        return True
+    toolkit = carried_or_held(player_data, ("basic_tools",))
+    return toolkit is not None and any(tool["id"] == tool_id for tool in toolkit["attributes"]["contents"])
 
 
 def _item_rows(game, keep=lambda item: True):
@@ -251,14 +352,52 @@ def _select_item(game, state, args, predicate=None):
         state["selected_id"] = item.get("id")
 
 
-USABLE_ITEM_IDS = ("medkit", "aloe", "basic_tools")
+USABLE_ITEM_IDS = ("aloe", "basic_tools", GAS_ANALYZER_ID, TRANSFER_VALVE_ID, BOMB_ID)
 ALOE_BURN_RELIEF = 10
 
 
+def tank_readout(item):
+    """The gauge line of a Gas Tank: pressure, temperature and each gas."""
+    return gas_mix.readout(item["attributes"]["contents"], GAS_TANK["volume"])
+
+
+def _heals(item):
+    """What a remedy treats: {"limbs" | a damage type | "alcohol": amount}, or None for any other item."""
+    return (item.get("attributes") or {}).get("heals")
+
+
+def heals_text(item):
+    """'Burn 30, Limbs 15' for what an item heals, or '' when it heals nothing."""
+    return ", ".join(f"{target.title()} {amount}" for target, amount in (_heals(item) or {}).items())
+
+
+# job -> fn(item) -> the line the job's PDA reads off an inventory item.
+ITEM_SCANNERS = {}
+
+
+def item_scanner(job):
+    """Register fn(item) as what the PDA of someone in this job reads off an item."""
+    def decorator(fn):
+        ITEM_SCANNERS[job] = fn
+        return fn
+    return decorator
+
+
+def _offered(item, action):
+    """Whether an item's menu offers one of its actions: Use only on items that have a use, and only the valve
+    action that changes a Gas Tank's valve."""
+    if action == "use":
+        return item.get("id") in USABLE_ITEM_IDS or _heals(item) or is_usable_artifact(item)
+    if action in ("open_valve", "close_valve"):
+        return item["attributes"]["valve_open"] == (action == "close_valve")
+    if action in ("set_timer", "disarm"):
+        return (item["attributes"]["goes_off_at"] is None) == (action == "set_timer")
+    return True
+
+
 def _other_actions(item):
-    """The actions an item's menu offers: those with a handler, and Use only on items that have a use."""
-    return [action for action in item.get("actions", [])
-            if action in _ITEM_ACTION_HANDLERS and (action != "use" or item.get("id") in USABLE_ITEM_IDS)]
+    """The actions an item's menu offers: those with a handler that _offered allows."""
+    return [action for action in item.get("actions", []) if action in _ITEM_ACTION_HANDLERS and _offered(item, action)]
 
 
 def _is_equippable(item):
@@ -306,10 +445,6 @@ def _equip_to_hand(game, index, item_id, side):
         return False
 
     removed = remove_one_from_inventory(game.player_data, index)
-    if removed is None:  # pragma: no cover - can't fail once _item_at has found the item
-        game.alert("Error", "Could not equip that item.", kind="error")
-        return False
-
     removed.pop("quantity", None)
     hands[side] = removed
     game.add_note(f"Equipped the {removed.get('name', 'item')} to your {side} hand.")
@@ -325,6 +460,7 @@ def inventory_panel(game, state):
         "selected": state.get("selected") if selected else None,
         "can_examine": selected is not None,
         "can_act": selected is not None and bool(_other_actions(selected)),
+        "can_scan": selected is not None and holding(game.player_data, PDA_ID),
     }
 
 
@@ -340,8 +476,25 @@ def examine(game, state, args):
         game.alert("Error", "Could not identify the selected item.", kind="error")
         return
     item_name = item.get("name", "Unknown Item")
+    text = item.get("description", "No description available.")
+    if item.get("id") == GAS_TANK_ID:
+        tank = gas_mix.pressure(item["attributes"]["contents"], GAS_TANK["volume"])
+        text += f" Its gauge reads {tank:.1f} kPa."
+    elif item.get("id") == BOMB_ID:
+        text += " Its two tanks' gauges read " + " and ".join(
+            f"{gas_mix.pressure(mix, GAS_TANK['volume']):.1f} kPa" for mix in item["attributes"]["contents"]) + "."
     game.add_note(f"Examined the {item_name}.")
-    game.alert(f"Examine: {item_name}", item.get("description", "No description available."))
+    game.alert(f"Examine: {item_name}", text)
+
+
+@panel_action("inventory")
+def scan(game, state, args):
+    """Read the selected item with the PDA in the player's hand. What it reads depends on their job."""
+    item = _selected_item(game, state)
+    if item is None or not holding(game.player_data, PDA_ID):
+        return
+    scanner = ITEM_SCANNERS.get(game.player_data["job"])
+    game.alert(f"PDA Scan: {item['name']}", scanner(item) if scanner else NO_SCANNER)
 
 
 @panel_action("inventory")
@@ -364,7 +517,7 @@ def item_actions_panel(game, state):
     return {
         "title": f"Actions: {item.get('name', 'Item')}",
         "actions": [
-            {"name": action, "label": action.capitalize()} for action in _other_actions(item)
+            {"name": action, "label": action.replace("_", " ").title()} for action in _other_actions(item)
         ],
     }
 
@@ -384,21 +537,12 @@ def _read_item(game, state, item):
 
 
 def _drop_item(game, state, item):
-    game.ask(
-        "Confirm Drop",
-        f"Are you sure you want to drop the {item.get('name', 'item')}? It will be gone forever!",
-        [("Yes", "drop_item", {"index": state["index"], "item_id": state["item_id"]}), ("No", None, None)],
-    )
-
-
-@choice_handler("drop_item")
-def drop_item_confirmed(game, index, item_id):
-    item = _item_at(game, index, item_id)
-    if item is None:
-        return
-    remove_one_from_inventory(game.player_data, index)
+    """Put one of the item down where the player is standing. It stays there until it is picked up."""
+    dropped = remove_one_from_inventory(game.player_data, state["index"])
+    stack_into(game.floor_here(), dropped)
     game.close_panel("item_actions")
-    game.add_note(f"Dropped the {item.get('name', 'item')}.")
+    game.add_note(f"Dropped the {item['name']}.")
+    game.alert("Drop", f"You put the {item['name']} down. It will stay here.")
 
 
 def _drink_item(game, state, item):
@@ -409,59 +553,81 @@ def _drink_item(game, state, item):
 
     remove_one_from_inventory(game.player_data, state["index"])
     game.close_panel("item_actions")
+    thirst = satisfy(game.player_data, "thirst", attributes.get("quenches", DEFAULT_QUENCHES))
 
     if alcoholic:
         game.player_data["alcohol_percent"] += alcohol_content
         alc = game.player_data["alcohol_percent"]
         game.add_note(f"Drank the {item_name}. Alcohol is now {alc:.1f}%.")
-        game.alert("Drink", f"You finish the {item_name}.\nAlcohol: {alc:.1f}%")
+        game.alert("Drink", f"You finish the {item_name}.\nThirst: {thirst:.0f}%\nAlcohol: {alc:.1f}%")
     else:
         game.add_note(f"Drank the {item_name}.")
-        game.alert("Drink", f"You finish the {item_name}.")
+        game.alert("Drink", f"You finish the {item_name}.\nThirst: {thirst:.0f}%")
 
 
 def _eat_item(game, state, item):
     item_name = item.get("name", "food")
     remove_one_from_inventory(game.player_data, state["index"])
     game.close_panel("item_actions")
+    hunger = satisfy(game.player_data, "hunger", item.get("attributes", {}).get("feeds", DEFAULT_FEEDS))
+    mended = _apply_heals(game.player_data, _heals(item) or {})
     game.add_note(f"Ate the {item_name}.")
-    game.alert("Eat", f"You eat the {item_name}.")
+    game.alert("Eat", "\n".join([f"You eat the {item_name}.", f"Hunger: {hunger:.0f}%", *mended]))
 
 
 def _use_item(game, state, item):
-    """Use a medkit or aloe, or open a basic_tools container (the USABLE_ITEM_IDS)."""
-    if item["id"] == "medkit":
-        _use_medkit(game, state)
+    """Use a remedy, aloe, an analysed artifact or the Gas Analyzer, open the transfer valve's panel from a valve or a
+    bomb, or open a basic_tools container."""
+    if is_usable_artifact(item):
+        game.close_panel("item_actions")
+        if use_artifact(game, item):
+            remove_one_from_inventory(game.player_data, state["index"])
+    elif _heals(item):
+        _use_remedy(game, state, item)
     elif item["id"] == "aloe":
         _use_aloe(game, state)
+    elif item["id"] == GAS_ANALYZER_ID:
+        _use_analyzer(game)
+    elif item["id"] in (TRANSFER_VALVE_ID, BOMB_ID):
+        game.close_panel("item_actions")
+        game.open_panel("transfer_valve")
     else:
         uid = item.setdefault("uid", uuid.uuid4().hex)
         game.close_panel("item_actions")
         game.open_panel("basic_tools", uid=uid)
 
 
-def _use_medkit(game, state):
-    """Heal injured limbs (+10%) and positive burn/poison/oxygen (-10%); consume on success."""
-    player_data = game.player_data
-    injured_limbs = [limb for limb in LIMBS if player_data["limbs"][limb] < 100]
-    injured_damage = [key for key in DAMAGE_TYPES if player_data["damage"][key] > 0]
+def _apply_heals(player_data, heals):
+    """Treat what a remedy's heals cover and return a 'before → after' line for each thing it changed."""
+    lines = []
+    for target, amount in heals.items():
+        if target == "limbs":
+            for limb in LIMBS:
+                if player_data["limbs"][limb] < 100:
+                    before, after = change_limb(player_data, limb, amount)
+                    lines.append(f"{limb_label(limb)}: {before}% → {after}%")
+        elif target == "alcohol":
+            before = player_data["alcohol_percent"]
+            if before > 0:
+                player_data["alcohol_percent"] = max(0, before - amount)
+                lines.append(f"Alcohol: {before:.1f}% → {player_data['alcohol_percent']:.1f}%")
+        elif player_data["damage"][target] > 0:
+            before, after = reduce_damage(player_data, target, amount)
+            lines.append(f"{target.title()}: {before}% → {after}%")
+    return lines
 
-    if not injured_limbs and not injured_damage:
-        game.alert("Medkit", "You are already at full health. The medkit is not needed.")
+
+def _use_remedy(game, state, item):
+    """Treat whatever the remedy heals; it is only used up when it treated something."""
+    name = item["name"]
+    lines = _apply_heals(game.player_data, _heals(item))
+    if not lines:
+        game.alert(name, f"You have nothing for the {name.lower()} to treat. It is not needed.")
         return
-
-    summary_lines = []
-    for limb in injured_limbs:
-        before, after = change_limb(player_data, limb, 10)
-        summary_lines.append(f"{limb_label(limb)}: {before}% → {after}%")
-    for key in injured_damage:
-        before, after = reduce_damage(player_data, key, 10)
-        summary_lines.append(f"{key.title()}: {before}% → {after}%")
-
     remove_one_from_inventory(game.player_data, state["index"])
     game.close_panel("item_actions")
-    game.add_note("Used a medkit.")
-    game.alert("Medkit", "You use the medkit:\n\n" + "\n".join(summary_lines))
+    game.add_note(f"Used {with_article(name.lower())}.")
+    game.alert(name, f"You use the {name.lower()}:\n\n" + "\n".join(lines))
 
 
 def _use_aloe(game, state):
@@ -477,8 +643,31 @@ def _use_aloe(game, state):
     game.alert("Aloe", f"The aloe soothes your burns.\n\nBurn: {before}% → {after}%")
 
 
+def _use_analyzer(game):
+    """Read the station's air, every Gas Tank the player carries or holds, and each tank on a bomb they carry into the
+    log."""
+    carried = game.player_data["inventory"] + held_items(game.player_data)
+    lines = [f"The air here: {gas_mix.readout(game.player_data['atmos']['air'], STATION_AIR['volume'])}"]
+    lines += [f"Gas Tank: {tank_readout(item)}" for item in carried if item.get("id") == GAS_TANK_ID]
+    lines += [f"Bomb tank {side}: {gas_mix.readout(mix, GAS_TANK['volume'])}"
+              for item in carried if item.get("id") == BOMB_ID
+              for side, mix in enumerate(item["attributes"]["contents"], 1)]
+    game.close_panel("item_actions")
+    game.add_note("Read the gas analyzer: " + " ".join(lines))
+    game.alert("Gas Analyzer", "\n".join(lines))
+
+
 def _equip_item(game, state, item):
     game.open_panel("equip_hand", index=state["index"], item_id=state["item_id"])
+
+
+def _set_valve(open_valve):
+    def handler(game, state, item):
+        item["attributes"]["valve_open"] = open_valve
+        game.close_panel("item_actions")
+        game.alert("Gas Tank", "You open the tank's valve. Hold it in a hand to breathe from it." if open_valve
+                   else "You close the tank's valve.")
+    return handler
 
 
 _ITEM_ACTION_HANDLERS = {
@@ -488,7 +677,17 @@ _ITEM_ACTION_HANDLERS = {
     "eat": _eat_item,
     "use": _use_item,
     "equip": _equip_item,
+    "open_valve": _set_valve(True),
+    "close_valve": _set_valve(False),
 }
+
+
+def item_action(name):
+    """Register fn(game, state, item) as the handler of an item action that another module defines."""
+    def decorator(fn):
+        _ITEM_ACTION_HANDLERS[name] = fn
+        return fn
+    return decorator
 
 
 @register_panel("read_item", "Reading")
@@ -524,8 +723,6 @@ def choose(game, state, args):
 @register_panel("hands", "Hands")
 def hands_panel(game, state):
     selected = _selected_item(game, state)
-    if selected is not None and not _is_equippable(selected):  # pragma: no cover - the hands panel only ever selects equippable items
-        selected = None
     rows = _hand_rows(game.player_data)
     for row in rows:
         row["can_equip"] = row["held"] is None and selected is not None
@@ -565,10 +762,6 @@ def _find_toolkit(game, uid):
     return None, None
 
 
-def _tool_name(tool):
-    return tool["name"]
-
-
 @register_panel("basic_tools", "Basic Tools")
 def basic_tools_panel(game, state):
     _, toolkit = _find_toolkit(game, state["uid"])
@@ -577,7 +770,7 @@ def basic_tools_panel(game, state):
     contents = toolkit["attributes"]["contents"]
     selected = state.get("selected")
     return {
-        "contents": [_tool_name(tool) for tool in contents],
+        "contents": [tool["name"] for tool in contents],
         "selected": selected if selected is not None and selected < len(contents) else None,
     }
 
@@ -603,7 +796,7 @@ def pull_out(game, state, args):
     tool = contents.pop(idx)
     state.pop("selected", None)
     add_to_inventory(game.player_data, tool)
-    game.add_note(f"Pulled the {_tool_name(tool)} out of the Basic Tools set.")
+    game.add_note(f"Pulled the {tool['name']} out of the Basic Tools set.")
 
 
 def _put_back_candidates(game, contents):
@@ -675,5 +868,5 @@ def confirm(game, state, args):
     tool_entry = copy.deepcopy(removed)
     tool_entry.pop("quantity", None)
     contents.append(tool_entry)
-    game.add_note(f"Put the {_tool_name(tool_entry)} back into the Basic Tools set.")
+    game.add_note(f"Put the {tool_entry['name']} back into the Basic Tools set.")
     game.close_panel("put_back_tools")

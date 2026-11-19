@@ -1,7 +1,7 @@
 {% import "game/_ui.html" as ui %}
-<h2>Basic Tools</h2>
+{{ ui.panel_header("Basic Tools") }}
 <p>Tools inside the set:</p>
-<div class="listbox short">
+<div class="listbox short" data-scroll-key="basic-tools">
   {% for name in p.contents %}
     {{ ui.row(name, "panel.select", {"index": loop.index0}, loop.index0 == p.selected) }}
   {% else %}
@@ -11,5 +11,4 @@
 <div class="button-row">
   {{ ui.btn("Pull Out", "panel.pull_out") }}
   {{ ui.btn("Put Back", "panel.put_back") }}
-  {{ ui.close_btn() }}
 </div>

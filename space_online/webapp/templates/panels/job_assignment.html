@@ -1,11 +1,11 @@
 {% import "game/_ui.html" as ui %}
-<h2>Job Assignment</h2>
+{{ ui.panel_header("Job Assignment", "Exit") }}
 <div class="two-columns">
   <fieldset class="group">
     <legend>Station NPCs</legend>
     <div class="listbox" data-scroll-key="assign-crew">
       {% for row in p.rows %}
-        {{ ui.row(row.label, "panel.select_member", {"index": row.index}, row.index == p.crew_index) }}
+        {{ ui.row(row.label, "panel.select_member", {"name": row.name}, row.name == p.crew_name) }}
       {% endfor %}
     </div>
   </fieldset>
@@ -24,6 +24,5 @@
 </fieldset>
 {{ ui.feedback(p.feedback) }}
 <div class="button-row">
-  {{ ui.close_btn("Exit") }}
   {{ ui.btn("Assign Role", "panel.assign") }}
 </div>

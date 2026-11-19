@@ -2,39 +2,62 @@
 {% import "wiki/_macros.html" as w with context %}
 {% block page %}
 <p>
-  Everything aboard runs off one battery. It drains as the station's systems draw power, and the solar array charges
-  it back up.
+  Everything aboard runs off one battery. It drains as the station's systems draw power. The Combustion Engine in the
+  Engineering Bay is the main charge, and the solar array is the backup.
 </p>
 
 <h2>Systems</h2>
 <ul>
   <li>Four systems draw power: Life Support, Hallway Lighting, Security Systems and the Communication Array. Each runs
     at a level from 0 (off) to 10, and higher levels draw more.</li>
-  <li>Life support keeps the crew breathing. See {{ w.link("Life Support") }}.</li>
-  <li>Hallway lighting sets how bright the station is. When the battery runs low, the lights dim on their own, and
-    near empty they drop to red emergency lighting.</li>
+  <li>Life support keeps the crew breathing: its level sets how fast the station's air is refreshed from the
+    reservoir. See {{ w.link("Life Support") }}.</li>
+  <li>Hallway lighting sets how bright the station is. At {{ facts.lighting.DIM_LIGHTING_BATTERY }}% battery or less
+    the lights dim on their own, and at {{ facts.lighting.EMERGENCY_LIGHTING_BATTERY }}% or less they drop to red
+    emergency lighting.</li>
+  <li><b>Security Systems</b> hold the door locks and flag the wanted. With them off, every locked door opens and
+    nobody is arrested on a warrant. See {{ w.link("Security and Jail") }}.</li>
+  <li>The <b>Communication Array</b> carries station-wide announcements and calls. With it off, shuttle calls,
+    incidents, hazards the station rolls and the crew's reports never reach the station log, the PA gives only
+    static, and nobody can be called back to their post. Warnings about what happens to you or around you still reach
+    the log, and the job events for your own job still arrive on your PDA and in the log.</li>
 </ul>
 
 <h2>The battery</h2>
 <ul>
-  <li>The solar array charges the battery by {{ facts.power.SOLAR_CHARGE_RATE|int }}% a minute while it's on.</li>
+  <li>Each minute the battery gains what the solar array and the Combustion Engine put out and loses what the systems
+    draw.</li>
+  <li>The <b>Combustion Engine</b> puts out up to {{ facts.engine.OUTPUT_CAP|int }}% a minute, depending on what it
+    burns and how well it is tuned. See {{ w.link("Engineering") }}.</li>
+  <li>The <b>solar array</b> puts out {{ facts.power.SOLAR_CHARGE_RATE }}% a minute while it's on.</li>
   <li>At {{ facts.power.BATTERY_LOW }}% or less the battery is low, and at {{ facts.power.BATTERY_CRITICAL }}% or less
-    it's critical, with a warning to switch on the solar array. At 0% the station has a power outage.</li>
+    it's critical, with a warning to check the power sources: "{{ facts.power.LOW_POWER_ALERT }}" At 0% the station
+    has a power outage and life support shuts down with it: "{{ facts.power.POWER_OUTAGE_ALERT }}" It can't be brought
+    back until the battery has some charge. See
+    {{ w.link("Life Support") }}.</li>
 </ul>
 
 <h2>Power modes</h2>
-<p>A power mode sets every system's level at once:</p>
-<ul>
-  {% for mode in facts.power_modes %}<li>{{ mode }}</li>{% endfor %}
-</ul>
+<p>A power mode sets every system's level at once. What each draws, beside what each source gives:</p>
+<table class="wiki-table">
+  <thead><tr><th>Mode</th><th>Draw (% a minute)</th><th>With the solar array alone</th></tr></thead>
+  <tbody>
+    {% for mode, draw in facts.mode_draws %}
+    <tr><td>{{ mode }}</td><td>{{ "%.2f"|format(draw) }}</td>
+      <td>{{ "%+.2f"|format(facts.power.SOLAR_CHARGE_RATE - draw) }} a minute</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
 <p>
-  With the solar array on, Balanced holds the battery steady, High Performance still loses a little, and Emergency
-  Only charges fastest.
+  The solar array alone holds the station in Power Saving or Emergency Only, and slowly loses in Balanced. The
+  Combustion Engine on a safe Hydrogen burn gives about
+  {% for fuel, oxidizer, output in facts.engine_burns if (fuel, oxidizer) == ("Hydrogen", "Oxygen") %}{{ "%.1f"|format(output) }}{% endfor %}%
+  a minute, which holds Balanced with some to spare.
 </p>
 
 <h2>Who controls it</h2>
 <p>
-  The Engineering Panel, at the Engineering Station, has the solar switch, a level slider for each system and the
-  power modes. Engineers, the Head of Personnel and the Captain can use it. See {{ w.link("Engineering") }}.
+  Engineers, the Head of Personnel and the Captain run it from the Engineering Station. See
+  {{ w.link("Engineering") }}.
 </p>
 {% endblock %}

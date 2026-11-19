@@ -7,18 +7,32 @@ from space_online.game.helper_methods.alcohol_helper import (
     sober_up_cost,
 )
 from space_online.game.helper_methods.oxygen_helper import DOCTOR_REQUIRED_FLOOR
-from space_online.game.helper_methods.errands import finish_errand, pending_errand
-from space_online.game.helper_methods.health_bands import DAMAGE_TYPES, average_limb_health, damage_band, health_band, limb_label
+from space_online.game.helper_methods.errands import finish_duty, open_duties
+from space_online.game.helper_methods.health_bands import (
+    DAMAGE_TYPES,
+    average_limb_health,
+    damage_band,
+    heal_fully,
+    health_band,
+    limb_label,
+)
+from space_online.game.helper_methods.crew_work import next_work_in
+from space_online.game.helper_methods.game_clock import format_elapsed
+from space_online.game.helper_methods.npc_movement import crew_named
 from space_online.game.helper_methods.station_status import crew_health_status
+from space_online.game.helper_methods.stores import take_from_stores
 from space_online.game.special_rooms.shared import (
     SpecialRoomBase,
     available_npc,
     button,
     npc_contact_widgets,
     room_action,
+    text_line,
 )
 from space_online.game.helper_methods.ui_panels import choice_handler, panel_action, register_panel
-from space_online.game.maps.donut import MEDBAY_KEY
+from space_online.game.maps.donut import CHEMISTRY_KEY, MEDBAY_KEY
+
+OUT_OF_REMEDIES = "MedBay is out of remedies. Nobody can be treated until Chemistry sends more."
 
 COST_MULTIPLIERS = {
     "blunt": 1,
@@ -26,14 +40,6 @@ COST_MULTIPLIERS = {
     "oxygen": 2,
     "burn": 3,
 }
-
-
-def heal_fully(member):
-    """Restore every limb and clear every damage type."""
-    for limb in member["limbs"]:
-        member["limbs"][limb] = 100
-    for damage_type in member["damage"]:
-        member["damage"][damage_type] = 0
 
 
 def assess_injuries(player_data):
@@ -118,15 +124,12 @@ def format_damage_sections(assessment):
     """Limb and other-damage sections shared by health check and doctor dialogs."""
     sections = []
 
-    if assessment["limb_details"]:
-        limb_lines = ["Limb Status:"]
-        for limb in assessment["limb_details"]:
-            limb_lines.append(
-                f"- {limb['name']}: {limb['health']}% ({limb['status']})"
-            )
-        sections.append("\n".join(limb_lines))
-    else:  # pragma: no cover - every character has limbs
-        sections.append("Limb Status:\nNo limb health data available.")
+    limb_lines = ["Limb Status:"]
+    for limb in assessment["limb_details"]:
+        limb_lines.append(
+            f"- {limb['name']}: {limb['health']}% ({limb['status']})"
+        )
+    sections.append("\n".join(limb_lines))
 
     damage_lines = ["Other Damage:"]
     for dtype in DAMAGE_TYPES:
@@ -159,8 +162,7 @@ def build_health_check_report(player_data):
     cost = build_treatment_cost_block(assessment, alcohol)
 
     health_report = "Health Check Results:\n\n"
-    if assessment["limbs"]:  # pragma: no branch - every character has limbs
-        health_report += f"Overall Limb Health: {overall_health:.1f}%\n\n"
+    health_report += f"Overall Limb Health: {overall_health:.1f}%\n\n"
     health_report += format_damage_sections(assessment)
 
     if alcohol > 0:
@@ -181,6 +183,8 @@ def build_health_check_report(player_data):
     health_report += "\n\nRecommendation: "
     if needs_attention:
         health_report += "Medical attention recommended."
+    elif cost["total_cost"] > 0:
+        health_report += "Minor injuries only. Treatment is optional."
     else:
         health_report += "No immediate medical attention required."
 
@@ -217,7 +221,7 @@ def build_health_check_report(player_data):
 
         if overall_health < 75:
             health_report += "\n• Movement and performance significantly impaired."
-        elif overall_health < 90 and assessment["limbs"]:
+        elif overall_health < 90:
             health_report += "\n• Some physical activities may be difficult."
 
     if cost["total_cost"] > 0:
@@ -265,13 +269,14 @@ class MedBay(SpecialRoomBase):
     )
     DOOR_KEY = MEDBAY_KEY
     STATION_ENTRIES = ({"label": "Enter MedBay Station", "mode": "medbay_station"},)
-    CONTACT_JOBS = ("Doctor",)
+    CONTACT_POSTS = {"Doctor": DOOR_KEY, "Scientist": CHEMISTRY_KEY}
 
     def room_options(self):
         widgets = [button("Request Health Check", "room.health_check")]
         widgets += npc_contact_widgets(
             self.game,
             "Doctor",
+            self.DOOR_KEY,
             talk_label="Talk to Doctor",
             talk_action="talk_to_doctor",
             absent_flavor="The doctor is currently away from MedBay.",
@@ -281,7 +286,14 @@ class MedBay(SpecialRoomBase):
     def mode_buttons(self, mode):
         if mode != "medbay_station" or not self.station_allowed(mode):
             return None
+        remedies = f"Remedies in stock: {self.player_data['stores']['remedies']}."
+        next_remedy = next_work_in(self.game, "Scientist", CHEMISTRY_KEY)
+        if next_remedy is not None:
+            remedies += f" Next one in {format_elapsed(next_remedy)}."
         return [
+            text_line(remedies, style="italic"),
+            *npc_contact_widgets(self.game, "Scientist", CHEMISTRY_KEY,
+                                 absent_flavor="The scientist is away from the Chemistry Lab."),
             button("Heal Injuries", "room.heal_player"),
             button("Check Crew Vitals", "room.show_crew_vitals"),
             button("Back to Station Menu", "room.set_mode", mode="menu"),
@@ -293,7 +305,7 @@ class MedBay(SpecialRoomBase):
 
     @room_action
     def talk_to_doctor(self):
-        if available_npc(self.game, "Doctor") is None:
+        if available_npc(self.game, "Doctor", self.DOOR_KEY) is None:
             return
         exam = build_doctor_exam_message(self.player_data)
         if not exam["needs_treatment"]:
@@ -304,13 +316,19 @@ class MedBay(SpecialRoomBase):
             "Doctor",
             exam["message"],
             [
-                (f"Yes ({exam['total_cost']} credits)", "doctor_treatment", None),
+                (f"Yes ({exam['total_cost']} credits)", "doctor_treatment", {"quoted": exam["total_cost"]}),
                 ("No", None, None),
             ],
         )
 
     @room_action(station="medbay_station")
     def heal_player(self):
+        if assess_injuries(self.player_data)["total_cost"] == 0:
+            self.game.alert("Medical Treatment", "You have nothing that needs treating.")
+            return
+        if not take_from_stores(self.player_data, "remedies"):
+            self.game.alert("Medical Treatment", OUT_OF_REMEDIES)
+            return
         original_health = self.player_data["limbs"].copy()
         original_damage = self.player_data["damage"].copy()
         heal_fully(self.player_data)
@@ -331,10 +349,7 @@ class MedBay(SpecialRoomBase):
                 injury_details.append(f"{damage_type.title()} ({value:.0f}% → 0%)")
 
         self.game.alert("Medical Treatment", healing_report)
-        if injury_details:
-            self.add_note(
-                f"Received advanced medical treatment at MedBay Station. Healed: {', '.join(injury_details)}"
-            )
+        self.add_note(f"Received advanced medical treatment at MedBay Station. Healed: {', '.join(injury_details)}")
 
     @room_action(station="medbay_station")
     def show_crew_vitals(self):
@@ -342,8 +357,9 @@ class MedBay(SpecialRoomBase):
 
 
 @choice_handler("doctor_treatment")
-def pay_for_healing(game):
-    """Charges what treatment costs now: injuries can get worse while the question is open."""
+def pay_for_healing(game, quoted):
+    """Charges what treatment costs now, which can differ from the quoted price: injuries can get worse, or oxygen
+    damage recover, while the question is open."""
     player_data = game.player_data
     exam = build_doctor_exam_message(player_data)
     if not exam["needs_treatment"]:
@@ -355,6 +371,9 @@ def pay_for_healing(game):
             "Doctor",
             "You don't have enough credits for treatment. Come back when you can afford it.",
         )
+        return
+    if not take_from_stores(player_data, "remedies"):
+        game.alert("Doctor", OUT_OF_REMEDIES)
         return
 
     player_data["credits"] -= total_cost
@@ -376,7 +395,8 @@ def pay_for_healing(game):
     injured_damage = [dtype.title() for dtype, value in original_damage.items() if value > 0]
     has_injuries = bool(injured_limbs) or bool(injured_damage)
 
-    message = f"You pay {total_cost} credits. The doctor treats you.\n\n"
+    paid = f"{total_cost} credits" + (f" (quoted {quoted}; your condition changed)" if total_cost != quoted else "")
+    message = f"You pay {paid}. The doctor treats you.\n\n"
     if has_injuries:
         message += "Healed:\n"
         if injured_limbs:
@@ -385,24 +405,17 @@ def pay_for_healing(game):
             message += f"- Other damage: {', '.join(injured_damage)}\n"
     if sobered:
         message += f"- Intoxication cleared (was {original_alcohol:.1f}%).\n"
-    if has_injuries or sobered:
-        message += "\nYou feel much better now."
-    else:  # pragma: no cover - treatment is only offered when there is something to treat
-        message += "No injuries were found."
+    message += "\nYou feel much better now."
     game.alert("Treatment Complete", message)
 
-    if has_injuries or sobered:
-        healed_parts = []
-        if injured_limbs:
-            healed_parts.append(f"Blunt Damage ({', '.join(injured_limbs)}) fully healed.")
-        if injured_damage:
-            healed_parts.append(f"Other Damage ({', '.join(injured_damage)}) fully healed.")
-        if sobered:
-            healed_parts.append(f"Sobered up from {original_alcohol:.1f}% alcohol.")
-        note_text = f"Paid {total_cost} credits for medical treatment. {' '.join(healed_parts)}"
-    else:  # pragma: no cover - treatment is only offered when there is something to treat
-        note_text = f"Paid {total_cost} credits for medical examination. No injuries were found."
-    game.add_note(note_text)
+    healed_parts = []
+    if injured_limbs:
+        healed_parts.append(f"Blunt Damage ({', '.join(injured_limbs)}) fully healed.")
+    if injured_damage:
+        healed_parts.append(f"Other Damage ({', '.join(injured_damage)}) fully healed.")
+    if sobered:
+        healed_parts.append(f"Sobered up from {original_alcohol:.1f}% alcohol.")
+    game.add_note(f"Paid {paid} for medical treatment. {' '.join(healed_parts)}")
 
 
 VITALS_DAMAGE_ICONS = {"burn": "🔥", "poison": "☣️", "oxygen": "💨"}
@@ -411,7 +424,7 @@ VITALS_DAMAGE_ICONS = {"burn": "🔥", "poison": "☣️", "oxygen": "💨"}
 @register_panel("crew_vitals", "Crew Vitals Monitor")
 def crew_vitals_panel(game, state):
     crew = []
-    for crew_index, crew_member in [(None, game.player_data)] + list(enumerate(game.station_crew)):
+    for crew_member in [game.player_data] + game.station_crew:
         status, status_color = crew_health_status(crew_member)
         limbs = crew_member.get("limbs", {})
         damage = crew_member.get("damage", {})
@@ -419,8 +432,8 @@ def crew_vitals_panel(game, state):
             "name": crew_member.get("name", "N/A"),
             "job": crew_member.get("job", "N/A"),
             "is_player": crew_member is game.player_data,
-            "index": crew_index,
-            "can_treat": crew_index is not None and assess_injuries(crew_member)["total_cost"] > 0,
+            "can_treat": (not state.get("read_only") and crew_member is not game.player_data
+                          and assess_injuries(crew_member)["total_cost"] > 0),
             "status": status,
             "status_color": status_color,
             "limbs": [
@@ -447,13 +460,16 @@ def toggle_details(game, state, args):
 
 @panel_action("crew_vitals")
 def treat(game, state, args):
-    """Heal an injured crew member, who pays the treatment cost from their own credits."""
-    crew_index = int(args["index"])
-    if not 0 <= crew_index < len(game.station_crew):
+    """Heal an injured crew member, who pays the treatment cost from their own credits. The monitor on a PDA
+    only shows the crew: treating them takes MedBay."""
+    patient = crew_named(game.station_crew, args["name"])
+    if patient is None or state.get("read_only"):
         return
-    patient = game.station_crew[crew_index]
     cost = assess_injuries(patient)["total_cost"]
     if cost == 0:
+        return
+    if not take_from_stores(game.player_data, "remedies"):
+        game.alert("Treatment", OUT_OF_REMEDIES)
         return
     paid = min(cost, patient["credits"])
     patient["credits"] -= paid
@@ -463,9 +479,10 @@ def treat(game, state, args):
     name = patient.get("name", "The patient")
     note = f"Treated {name} for {paid} credits."
     message = f"You treat {name}. They pay you {paid} credits."
-    errand = pending_errand(game.player_data)
-    if errand and errand["kind"] == "treat" and errand["patient"] == patient.get("name"):
-        finish_errand(game, note, message)
+    duty = next((duty for duty in open_duties(game.player_data, ("treat",)) if duty["patient"] == patient["name"]),
+                None)
+    if duty is not None:
+        finish_duty(game, duty, note, message)
         return
     game.add_note(note)
     game.alert("Treatment", message)

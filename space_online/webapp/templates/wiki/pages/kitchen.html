@@ -1,0 +1,60 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<p>The Kitchen is next door to the {{ w.link("Bar") }}, and the two share a service window.</p>
+
+<h2>For visitors</h2>
+<ul>
+  <li><b>Order Food</b>, while the Chef is on duty: the food menu has ready-made basics plus any dishes the kitchen has
+    in stock. Food goes into your inventory to eat whenever you like, and a cooked dish fills you far more than a
+    basic. The Chef crew member keeps a few dishes ready. See {{ w.link("Station Stores") }}.</li>
+</ul>
+
+<h2>The Chef Station</h2>
+<p>Chefs, the Head of Personnel and the Captain can work it.</p>
+<ul>
+  <li><b>Cook Dishes</b>: put up to {{ facts.dishes.MAX_PAN_INGREDIENTS }} ingredients from the pantry in the pan and
+    cook. If they match a recipe, the dish goes into the kitchen's stock and onto the menu. If not, you're told what
+    went wrong. {{ facts.stores.KITCHEN_PRODUCE.values()|join(", ") }} are not in the pantry: they come from Botany
+    through the station stores and show under <b>Botany</b>, with how many are left. When they run out you can buy
+    more at the Botanist's Produce Stand in the {{ w.link("Botany") }} Lab, then stock the kitchen with them. See
+    {{ w.link("Station Stores") }}.</li>
+  <li><b>Stock the Kitchen</b>: send the produce you carry to the kitchen's stores, where the stove can use it.</li>
+  <li><b>View Recipes</b>: the recipe book, by category, with a search by name, ingredient or description.</li>
+  <li><b>Serve Food</b>: the food menu. Food is free for the Chef.</li>
+  <li><b>Service Window</b>: see below.</li>
+</ul>
+
+<h2>The service window</h2>
+<p>
+  Each room has ingredients the other one doesn't. The pantry is the only place to get celery, which a Bloody Mary
+  needs, and the bar is the only place to get the beer, wine and rum that some dishes need.
+</p>
+<ul>
+  <li><b>Pass Through</b>: choose one of your own ingredients and an amount, up to {{ facts.window_max }}, and put it
+    on the window, where it waits for the other room. Their station can then use exactly that many. If their crew
+    member asked for it, they take what they asked for first.</li>
+  <li><b>Ask For</b>: choose one of the other room's ingredients and an amount. Their crew member passes it through
+    from wherever they are. While they can't work, because they're in jail or too hurt, your request waits, and it is
+    filled once they can.</li>
+  <li>The window shows what's waiting for you, what you've put out, and anything the other side is asking for.</li>
+  <li>What's on the window shows up in your stove or mixer under <b>Window</b>, with how many are left.</li>
+  <li>Passing things through is a favour between the two rooms. Nobody is paid for it.</li>
+</ul>
+
+<h2>Food orders</h2>
+<p>
+  As a Chef, your job brings you crew members' orders for dishes. Cook one, then serve it from the Chef Station for
+  the dish's menu price. See {{ w.link("Chef") }}.
+</p>
+
+<h2>Dishes</h2>
+<table class="wiki-table">
+  <thead><tr><th>Dish</th><th>Ingredients</th><th>Price</th></tr></thead>
+  <tbody>
+    {% for name, dish in facts.dishes.DISHES.items() %}
+    <tr><td>{{ name }}</td><td>{{ dish.ingredients|join(", ") }}</td><td>{{ dish.price }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

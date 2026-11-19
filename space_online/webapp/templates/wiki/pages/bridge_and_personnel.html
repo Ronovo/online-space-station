@@ -7,9 +7,13 @@
   <li><b>Talk to Captain</b>: the Captain is too busy for chats.</li>
   <li><b>Talk to HoP</b>, while the Head of Personnel is on duty:
     <ul>
-      <li><b>Access Control</b>: a public terminal where you request a change to another job.</li>
-      <li><b>Talk to HoP</b>: the HoP looks at your pending request. It's a coin flip whether they approve it, and you
-        change jobs on the spot if they do.</li>
+      <li><b>Access Control</b>: a public terminal where you request a change to another job. In a career it offers
+        every job but Captain and Head of Personnel, unlocked or not: ending the shift in a job is how you unlock it. See
+        {{ w.link("Modes and Careers") }}.</li>
+      <li>The HoP answers your request on your PDA {{ facts.bridge.ACCESS_DECISION_SECONDS_RANGE[0] }}-{{
+        facts.bridge.ACCESS_DECISION_SECONDS_RANGE[1] }} seconds after you put it in, or as soon as they can work
+        after that. It's a coin flip whether they approve it, and you change jobs on the spot if they do. Until then
+        Access Control shows the request as pending.</li>
     </ul>
   </li>
 </ul>
@@ -19,6 +23,9 @@
 <ul>
   <li><b>Station Status</b>: the full station briefing. See {{ w.link("Station Status") }}.</li>
   <li><b>Security Alerts</b>: who is wanted and still at large.</li>
+  <li><b>Incident Log</b>: what the antagonists have done, and who was away from their post. See
+    {{ w.link("Antagonists") }}.</li>
+  <li><b>Call Crew Shuttle</b>: see {{ w.link("Rounds and the Shuttle") }}.</li>
   <li><b>Crew Manifest</b>: the crew by department.</li>
 </ul>
 
@@ -26,9 +33,12 @@
 <p>The Head of Personnel and the Captain can work it.</p>
 <ul>
   <li><b>Crew Manifest</b>: the crew by department.</li>
-  <li><b>Job Assignments</b>: give any crew member a new job, and they move to that job's post. Only the Captain can
-    make someone Captain or move the current Captain, and the Captain is asked first before giving up the role with no
-    one to take over.</li>
+  <li><b>Job Assignments</b>: give any crew member a new job, and they move to that job's post (the first one nobody
+    holds, for a job with several), or take it up when they're let out of jail. Only the Captain can make someone
+    Captain or move the current Captain. There is one Captain and one Head of Personnel at a time: giving either job
+    to someone else asks first, then makes the one who held it a Staff Assistant. Taking the job away from the Head of
+    Personnel, a Doctor, an Engineer or a Security Guard asks first too, and so does the Captain stepping down. Every
+    assignment goes in the station log.</li>
   <li><b>Access Control</b>: approve or deny the pending job request, whether it's yours or one a crew member sent in.</li>
 </ul>
 <p>Giving someone the Engineer job switches the solar array on.</p>

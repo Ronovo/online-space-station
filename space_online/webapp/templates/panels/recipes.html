@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Bartender's Recipe Book</h2>
+{{ ui.panel_header(p.labels.title) }}
 <div class="toggle-row">
   {% for key, label in p.categories %}
     {{ ui.btn(label, "panel.category", {"name": key}, "btn-small") }}
@@ -14,7 +14,7 @@
     <div class="recipe">
       <p class="recipe-name">{{ recipe.name }}:</p>
       <p class="indent"><b>Ingredients:</b> <span class="ingredients">{{ recipe.ingredients }}</span></p>
-      <p class="indent"><b>Price:</b> {{ recipe.price }} credits</p>
+      {% if recipe.price is not none %}<p class="indent"><b>Price:</b> {{ recipe.price }} credits</p>{% endif %}
       <p class="indent"><b>Description:</b> {{ recipe.desc }}</p>
     </div>
     {% endfor %}
@@ -25,6 +25,5 @@
   <label for="recipe-search">Search:</label>
   <input id="recipe-search" name="query" type="search" maxlength="100" value="{{ p.query }}">
   <button type="submit" class="btn btn-small">Search</button>
-  {{ ui.btn("Ingredients List", "panel.ingredients", cls="btn-small") }}
+  {% if p.labels.ingredients_panel %}{{ ui.btn("Ingredients List", "panel.ingredients", cls="btn-small") }}{% endif %}
 </form>
-<div class="button-row">{{ ui.close_btn() }}</div>

@@ -1,0 +1,131 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set r = facts.rounds %}
+{% set trip = r.SHUTTLE_DOCKED_SECONDS + r.SHUTTLE_TRANSIT_SECONDS %}
+{% block page %}
+<p>
+  A round is one shift on the station. It ends when the crew shuttle carries the crew back to Central Command, which
+  takes {{ (r.SHUTTLE_LOCKOUT_SECONDS + r.SHUTTLE_URGENT_ARRIVAL_SECONDS + trip) // 60 }} to
+  {{ (r.SHIFT_END_RANGE_SECONDS[1] + r.SHUTTLE_ARRIVAL_SECONDS + trip) // 60 }} minutes of play, or longer after a
+  recall. The clock only runs while the game is open, so a shift waits for you. The
+  bar above every screen shows the alert level, the shift clock, your health, and the shuttle once it has been
+  called.
+</p>
+
+<h2>Who calls the shuttle</h2>
+<ul>
+  <li>Nobody can call it in the first {{ r.SHUTTLE_LOCKOUT_SECONDS // 60 }} minutes of a shift.</li>
+  <li>When you aren't the Captain, the Captain crew member calls it at the first of these:
+    <ul>
+      <li>the alert reaches Red;</li>
+      <li>{{ r.ALL_CLEAR_DELAY_SECONDS // 60 }} minutes after the last threat is dealt with, but never before
+        {{ r.SHIFT_END_RANGE_SECONDS[0] // 60 }} minutes in;</li>
+      <li>the shift has simply run its course, some time between {{ r.SHIFT_END_RANGE_SECONDS[0] // 60 }} and
+        {{ r.SHIFT_END_RANGE_SECONDS[1] // 60 }} minutes in.</li>
+    </ul>
+    If no Captain can work, nobody calls it at Red or when the threats are dealt with. Central Command calls it only
+    when the shift has run its course.
+  </li>
+  <li>If you are the Captain, when to call it is up to you, Red alert included: <b>Call Crew Shuttle</b> is at the
+    Captain's Station on the Bridge. Central Command only calls it if the shift runs long, at
+    {{ r.SHIFT_END_RANGE_SECONDS[1] // 60 }} minutes.</li>
+</ul>
+
+<h2>The shuttle's trip</h2>
+<table class="wiki-table">
+  <thead><tr><th>Step</th><th>How long</th></tr></thead>
+  <tbody>
+    <tr><td>Called to docked</td><td>{{ r.SHUTTLE_ARRIVAL_SECONDS // 60 }} minutes, or
+      {{ r.SHUTTLE_URGENT_ARRIVAL_SECONDS // 60 }} when it is called at Red alert</td></tr>
+    <tr><td>Docked at Departures</td><td>{{ r.SHUTTLE_DOCKED_SECONDS // 60 }} minutes</td></tr>
+    <tr><td>Flight to Central Command</td><td>{{ r.SHUTTLE_TRANSIT_SECONDS // 60 }} minute</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b>Recall</b>: a Captain can recall the shuttle until it is halfway to the station, at most
+    {{ r.SHUTTLE_RECALLS_PER_SHIFT }} recall per shift. After a recall the shuttle can't be called again for as long
+    as that trip would have taken. A call that comes due in that time goes out the moment it ends, and the log says
+    when that will be.</li>
+  <li><b>Boarding</b>: Departures is off the hallway just north of the junction by your Quarters. While the shuttle is
+    docked, press <b>Board the Shuttle</b> there. You board into the Common Area, on your feet, and can step back off
+    from there until it leaves.</li>
+  <li><b>Left behind</b>: if you aren't aboard when it leaves, you don't survive the round, in a Peaceful round
+    too. If you are in jail, Security puts you aboard in cuffs and locks you in the shuttle's cell.</li>
+  <li><b>The crew</b>: crew who aren't at a post head for Departures as soon as the shuttle is called. Crew at their
+    posts keep working until it docks, then go. About one in {{ (1 / facts.npcs.STAY_BEHIND_CHANCE)|round|int }}
+    doesn't notice and stays behind. Jailed crew are put aboard, and crew too hurt to move are left. A recall sends
+    everyone back to what they were doing. The log says how many made it when the shuttle leaves.</li>
+  <li><b>In flight</b>: a fight with an antagonist aboard goes on every {{ facts.combat.TRANSIT_ENEMY_TURN_SECONDS }}
+    seconds whether you act or not, and no salary is paid once the shuttle has left. See {{ w.link("Antagonists") }}
+    for who it goes for.</li>
+</ul>
+
+<h2>Aboard the shuttle</h2>
+<p>
+  The shuttle has five sections. You walk between them through the Common Area, and <b>Exit Room</b> takes you back
+  to it. The crew who board sit in the Common Area's seats.
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Section</th><th>Who can go in</th><th>What is there</th></tr></thead>
+  <tbody>
+    <tr><td>Common Area</td><td>Everyone</td><td>The seats and the airlock. Strap In, Talk to the Crew, Step Off the
+      Shuttle</td></tr>
+    <tr><td>Command</td><td>Security Guards, the Captain and the Head of Personnel</td><td>Head Count. Security
+      Guards and the Captain can also Watch the Passengers and Issue a Warrant</td></tr>
+    <tr><td>Medical Bay</td><td>Everyone</td><td>A bed</td></tr>
+    <tr><td>Security</td><td>Security Guards and the Captain</td><td>The cell. Scan the Passengers</td></tr>
+    <tr><td>Break Room</td><td>Everyone</td><td>A coffee machine</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li><b>Strapping in</b>: the shuttle warns {{ r.LAUNCH_WARNING_SECONDS }} seconds before it leaves. Be strapped
+    into a seat, lying in the bed or locked in the cell when it does: anyone else is thrown across the cabin and
+    hurts a limb by {{ r.LAUNCH_THROW_DAMAGE_RANGE[0] }}-{{ r.LAUNCH_THROW_DAMAGE_RANGE[1] }}%, in a Peaceful round
+    too, though it can't kill you. While strapped in you can still talk to the crew, but you have to unstrap to get
+    up. Once the shuttle is away you can unstrap and walk the sections again.</li>
+  <li><b>Talk to the Crew</b>: each crew member in the seats says one thing about the shift: an antagonist still
+    loose or dealt with, the Incident Log, a hazard left burning, the battery or life support, someone who didn't
+    make the shuttle, your warrant, or your duties. Each comes up once a trip. With nothing left to say about the
+    shift, they talk about their job. The log names who said it and their job. Prisoners in the cell say
+    nothing.</li>
+  <li><b>Head Count</b>: every crew member and where they are: aboard, on the way, hasn't noticed the call, in jail
+    or the shuttle's cell, or too hurt to move. While docked, <b>Page</b> sends someone who hasn't noticed the call
+    to the shuttle. It needs the Communication Array, pays nothing, and they still have to walk there, so a late
+    page may not get them aboard. In flight it shows who was left behind.</li>
+  <li><b>Watch the Passengers</b> (docked only) shows what one crew member in the seats is up to. A hidden
+    antagonist aboard sometimes gives itself away, but innocent crew can look odd too, so one look proves nothing.
+    <b>Issue a Warrant</b> puts a warrant on a crew member in the seats for suspicious behaviour aboard the shuttle.
+    A wrong warrant costs you nothing, but the innocent crew member rides in the cell.</li>
+  <li><b>The cell</b>: <b>Scan the Passengers</b> in the Security section collects the fines of the crew aboard and
+    offers to arrest the wanted, as walking into a room does on the station. They go into the shuttle's cell, and
+    the cell lists who is held and what for. If a hidden antagonist is secretly one of the crew, arresting that crew member ends it before it strikes.
+    Nobody is let out of the cell, and the station's prisoners join it when the shuttle leaves. A prisoner rides
+    in the cell for the whole flight and still reaches Central Command.</li>
+  <li><b>The bed</b> in the Medical Bay works like the bed in your Quarters, faster: it mends every limb by
+    {{ facts.shuttle_bed_per_minute }}% a minute, for free. It doesn't treat burns, poison or oxygen damage. Get up
+    before you leave the section. A fight aboard gets you out of it.</li>
+  <li><b>Coffee</b>: put Coffee Grounds and Water in the Break Room's coffee machine and press <b>Brew</b> for a
+    Coffee, which quenches thirst like any other drink. Water alone runs through clear and grounds alone scorch.</li>
+  <li><b>The flight</b>: one thing happens {{ r.FLIGHT_EVENT_RANGE_SECONDS[0] }} to
+    {{ r.FLIGHT_EVENT_RANGE_SECONDS[1] }} seconds into the flight, unless an antagonist aboard starts a fight:
+    <ul>
+      <li><b>Turbulence</b> hurts a limb by {{ facts.events.TURBULENCE_DAMAGE_RANGE[0] }}-{{
+        facts.events.TURBULENCE_DAMAGE_RANGE[1] }}% if you aren't strapped in, in the bed or in the cell, and spills
+        any Coffee you carry.</li>
+      <li><b>Taken Ill</b>: a crew member in the seats needs a remedy from Chemistry. If you carry the right one you
+        can give it to them, and they pay you {{ facts.events.FLIGHT_REMEDY_REWARD_RANGE[0] }}-{{
+        facts.events.FLIGHT_REMEDY_REWARD_RANGE[1] }} credits.</li>
+      <li><b>Loose Cargo</b>: grab the crate for whatever is in it, at the risk of a knock, or let it slide.</li>
+      <li><b>Central Command</b> asks how the shift went. Your answer only changes what goes in the log.</li>
+    </ul>
+  </li>
+</ul>
+
+<h2>The shift report</h2>
+<p>
+  When the shuttle reaches Central Command, or when you die, you get a shift report: how the round ended, who the
+  antagonists were, what they were after and what became of them, the duties you did and missed, your pay, and in
+  a career what you unlocked or a pick of what to unlock. See
+  {{ w.link("Modes and Careers") }}.
+</p>
+{% endblock %}

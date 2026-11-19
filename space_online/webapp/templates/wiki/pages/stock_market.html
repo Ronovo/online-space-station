@@ -1,20 +1,37 @@
 {% extends "wiki/page.html" %}
 {% import "wiki/_macros.html" as w with context %}
 {% block page %}
-<p>Anyone can trade shares from the <b>Computer</b> in their Quarters.</p>
+<p>
+  Anyone can trade shares from the <b>Computer</b> in their Quarters. Your {{ w.link("PDA") }} shows the same market
+  from anywhere, but it can't buy or sell.
+</p>
 
 <h2>How prices move</h2>
 <ul>
   <li>The market lists {{ facts.company_count }} companies.</li>
   <li>Every {{ facts.market_minutes }} minutes of game time a new market cycle starts, and each company's price moves up
-    or down by as much as 10%.</li>
-  <li>Hallway events sometimes let you overhear a tip about a company. Tips aren't always right.</li>
+    or down at random by as much as 10%, unless real news pushes it (below).</li>
+</ul>
+
+<h2>Market news</h2>
+<ul>
+  <li>Each cycle the market panel shows {{ facts.market.NEWS_PER_CYCLE }} headlines, each about one company and
+    pointing up or down.</li>
+  <li>About {{ (facts.market.NEWS_REAL_CHANCE * 100)|round|int }} in 100 headlines are real. A real one moves its
+    company that way at the next update, by {{ (facts.market.NEWS_MOVE_RANGE[0] * 100)|round|int }}-{{ (facts.market.NEWS_MOVE_RANGE[1] * 100)|round|int }}%.
+    The rest are noise, and that company moves at random like any other.</li>
+  <li>Nothing tells you which headlines are real.</li>
+  <li>A hallway <b>Market Tip</b> event repeats one of the current headlines, so a tip is only as good as the news.</li>
 </ul>
 
 <h2>Trading</h2>
 <ul>
+  <li>The company list shows each price, how it moved this cycle, and the shares you hold. The tiles above it show
+    the cycle, the time to the next update, your credits and what your shares are worth.</li>
   <li>Select a company to see its price chart, then buy or sell whole shares at today's price.</li>
   <li>Filter the list to companies you can afford, ones you own, or ones rising or falling, and sort it by price.</li>
   <li>Your trade history lists every buy and sell. Your holdings are on the Character Sheet.</li>
+  <li>When the shift ends, every share you still hold is sold at its current price, and the shift report shows
+    what they raised.</li>
 </ul>
 {% endblock %}

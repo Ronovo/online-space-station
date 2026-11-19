@@ -8,20 +8,37 @@
   door.
 </p>
 <p>
-  When you're the Engineer, the solar array starts switched off, so turning it on is your first job.
+  The Combustion Engine is yours to run: it is the station's main power, and the solar array is only a backup. When
+  you're the Engineer, the engine starts unlit and the solar array switched off, so lighting the engine is your first
+  job. Then keep it fed with canisters from Atmospherics and tuned to what is in them. See {{ w.link("Engineering") }}.
 </p>
 
 <h2>Job events</h2>
 <ul>
-  <li><b>Solar Panels Offline</b>: the array shuts down. Switch it back on from the Engineering Panel.</li>
-  <li><b>System Fault</b>: {{ facts.faultable|join(", ") }} faults and shuts off. Carry Basic Tools or a Repair Tool and
+  <li><b>Solar Panels Offline</b>: the array shuts down. Switch it back on from the Engineering Panel. It doesn't
+    happen again within {{ facts.events.SOLAR_TRIP_COOLDOWN_SECONDS // 60 }} minutes.</li>
+  <li><b>System Fault</b>: one of {{ facts.faultable|join(", ") }} faults and shuts off. Carry Basic Tools or a Repair Tool and
     press <b>Repair</b> on the panel. See {{ w.link("Engineering") }}.</li>
 </ul>
+<p>
+  Room hazards aren't job events: the station rolls them on its own, and they are yours to fix. See
+  {{ w.link("Hazards") }}.
+</p>
+<p>
+  With you in the job, nobody else restarts the array, repairs a fault, fixes a hazard or runs the engine. A dead
+  battery also takes life support down, and bringing it back up once there is charge is yours too.
+</p>
 
 <h2>Tips</h2>
 <ul>
-  <li>Keep Basic Tools from your locker on you, so a fault can be fixed straight away.</li>
-  <li>Keep life support above level {{ facts.oxygen.DAMAGE_THRESHOLD_LEVEL }}, or the whole crew starts losing oxygen.
-    See {{ w.link("Life Support") }}.</li>
+  <li>Keep Basic Tools from your locker on you, so a fault, a breach or bad wiring can be fixed straight away, and
+    make a Fire Extinguisher at the fabricator, under Room Options in the Engineering Bay, for fires.</li>
+  <li>Keep life support above level {{ facts.air.KEEPS_UP_LEVEL|int }}, or the air thins out and the whole crew starts
+    losing oxygen. See {{ w.link("Life Support") }}.</li>
+  <li>Your PDA's Power Readout shows the battery, the engine's output, the air and the reservoir. It messages you
+    about faults, hazards, a failing battery, a damaged combustion chamber, bad air and a low reservoir. See
+    {{ w.link("PDA") }}.</li>
+  <li>Keep an eye on the engine's hint line. A cut coolant line overheats a running engine: repair it before the
+    chamber gives out.</li>
 </ul>
 {% endblock %}

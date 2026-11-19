@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Bartender's Drink Mixer</h2>
+{{ ui.panel_header(p.labels.title) }}
 <div class="two-columns">
   <div>
     <p>Ingredient Categories:</p>
@@ -13,7 +13,7 @@
       <div class="listbox" data-scroll-key="ingredients">
         <div class="list-header">{{ p.heading }}</div>
         {% for name in p.ingredients %}
-          {{ ui.row(name, "panel.select_ingredient", {"name": name}, name == p.selected_ingredient) }}
+          {{ ui.row(name ~ (" (" ~ p.counts[name] ~ ")" if name in p.counts else ""), "panel.select_ingredient", {"name": name}, name == p.selected_ingredient) }}
         {% endfor %}
       </div>
     </fieldset>
@@ -21,7 +21,7 @@
   </div>
   <div>
     <fieldset class="group">
-      <legend>Mixing Glass</legend>
+      <legend>{{ p.labels.container_label }}</legend>
       <div class="listbox" data-scroll-key="glass">
         {% for name in p.glass %}
           {{ ui.row(name, "panel.select_glass", {"index": loop.index0}, loop.index0 == p.selected_glass) }}
@@ -30,16 +30,15 @@
     </fieldset>
     <div class="stack">
       {{ ui.btn("← Remove Ingredient", "panel.remove_ingredient") }}
-      {{ ui.btn("Clear Glass", "panel.clear_glass") }}
+      {{ ui.btn("Clear " ~ p.labels.container|title, "panel.clear_glass") }}
     </div>
   </div>
 </div>
 <fieldset class="group">
-  <legend>Mixing Result</legend>
-  <p class="result"{% if p.result %} style="color: {{ p.result.color }}"{% endif %}>{{ p.result.text if p.result else "Mix ingredients to create a drink" }}</p>
+  <legend>Result</legend>
+  <p class="result"{% if p.result %} style="color: {{ p.result.color }}"{% endif %}>{{ p.result.text if p.result else p.labels.idle_text }}</p>
 </fieldset>
 <div class="button-row">
-  {{ ui.btn("Mix Drink", "panel.mix", cls="btn-primary") }}
+  {{ ui.btn(p.labels.mix_label, "panel.mix", cls="btn-primary") }}
   {{ ui.btn("Recipe Book", "panel.recipes") }}
-  {{ ui.close_btn() }}
 </div>

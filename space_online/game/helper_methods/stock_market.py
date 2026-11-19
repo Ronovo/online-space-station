@@ -2,6 +2,7 @@
 
 import random
 
+from space_online.game.helper_methods.errands import counted
 from space_online.game.helper_methods.game_clock import get_elapsed_seconds
 from space_online.game.helper_methods.ui_panels import panel_action, register_panel
 
@@ -25,22 +26,52 @@ DEFAULT_COMPANY_NAMES = [
 
 CYCLE_INTERVAL_SECONDS = 300  # a new cycle every 5 minutes of master game time
 
+NEWS_PER_CYCLE = 3
+NEWS_REAL_CHANCE = 0.6
+# How far a headline that turns out to be real moves its company, as a fraction of the price.
+NEWS_MOVE_RANGE = (0.03, 0.12)
+NEWS_HEADLINES = {
+    "up": (
+        "{name} beats its earnings forecast",
+        "Analysts upgrade {name} to a strong buy",
+        "{name} lands a major station supply contract",
+        "Rumours of a buyout offer for {name}",
+    ),
+    "down": (
+        "{name} recalls its flagship product",
+        "Regulators open an inquiry into {name}",
+        "{name} misses its quarterly targets",
+        "A senior executive resigns from {name}",
+    ),
+}
+
+
 class Company:
     def __init__(self, name, starting_value):
         self.name = name
         self.current_value = starting_value
         self.previous_value = starting_value
         self.price_history = [starting_value]
-        
-    def update_value(self):
+
+    @classmethod
+    def from_save(cls, data):
+        """A live company from its saved dict."""
+        company = cls(data["name"], data["current_value"])
+        company.previous_value = data["previous_value"]
+        company.price_history = data["price_history"]
+        return company
+
+    def update_value(self, direction=None):
+        """Move the price for a new cycle: at random, or up or down when real news pushes it."""
         self.previous_value = self.current_value
-        
-        change = random.uniform(-0.10, 0.10)
-        
+
+        if direction is None:
+            change = random.uniform(-0.10, 0.10)
+        else:
+            change = random.uniform(*NEWS_MOVE_RANGE) * (1 if direction == "up" else -1)
+
         self.current_value = max(1.0, self.current_value * (1 + change))
-        
         self.price_history.append(self.current_value)
-        
         if len(self.price_history) > 50:
             self.price_history.pop(0)
 
@@ -67,15 +98,6 @@ def serialize_companies(companies):
     ]
 
 
-def apply_companies_from_save(companies, company_data_list):
-    """Restore live company objects from saved player_data."""
-    for company, company_data in zip(companies, company_data_list, strict=True):
-        company.name = company_data["name"]
-        company.current_value = company_data["current_value"]
-        company.previous_value = company_data["previous_value"]
-        company.price_history = company_data["price_history"]
-
-
 def get_seconds_until_next_cycle(elapsed_seconds, interval=CYCLE_INTERVAL_SECONDS):
     """Calculate seconds remaining until the next market cycle, per the master timer."""
     return int(max(0, interval - (elapsed_seconds % interval)))
@@ -86,8 +108,26 @@ def default_stock_market_state():
     return {
         "cycle_number": 1,
         "companies": [],
+        "news": [],
         "trade_log": [],
     }
+
+
+def generate_news(companies):
+    """This cycle's headlines: each names a company and a direction, and only some of them are real.
+
+    A real headline pushes its company that way at the next cycle; the rest are noise.
+    """
+    news = []
+    for company in random.sample(companies, min(NEWS_PER_CYCLE, len(companies))):
+        direction = random.choice(("up", "down"))
+        news.append({
+            "company": company.name,
+            "direction": direction,
+            "text": random.choice(NEWS_HEADLINES[direction]).format(name=company.name),
+            "real": random.random() < NEWS_REAL_CHANCE,
+        })
+    return news
 
 
 def round_credits(value):
@@ -125,39 +165,33 @@ def record_trade(player_data, cycle, side, company_name, shares, price, total):
         }
 
 
-def generate_market_tip(companies_data):
-    """Return a random overheard market tip, or None if no companies exist."""
-    if not companies_data:
+def generate_market_tip(news):
+    """Return one of the cycle's headlines as an overheard tip, or None when there is no news."""
+    if not news:
         return None
-
-    company = random.choice(companies_data)
-    direction = random.choice(["rise", "fall"])
-    name = company["name"]
-
-    if direction == "rise":
-        return f"Overheard that {name} stock is expected to rise soon!"
-    return f"Overheard that {name} stock might be dropping in value soon!"
+    return f"Overheard in the hall: {random.choice(news)['text']}."
 
 
 class StockMarketEngine:
     """Owns live market state and master-timer-driven tick logic."""
 
-    def __init__(self, companies):
+    def __init__(self, companies, news=None):
         self.companies = companies
         self.cycle_number = 1
+        self.news = news if news is not None else []
 
     def tick_if_due(self, elapsed_seconds):
         """Advance the market to match the master timer.
 
         Cycles are scheduled purely off ``elapsed_seconds``: cycle N ends at
-        ``N * CYCLE_INTERVAL_SECONDS``. Catches up fully (not just one cycle)
-        if a lot of time passed since the last check, e.g. after loading a
-        save that sat untouched for a while.
+        ``N * CYCLE_INTERVAL_SECONDS``.
         """
         target_cycle = int(elapsed_seconds // CYCLE_INTERVAL_SECONDS) + 1
         while self.cycle_number < target_cycle:
+            pushed = {item["company"]: item["direction"] for item in self.news if item["real"]}
             for company in self.companies:
-                company.update_value()
+                company.update_value(pushed.get(company.name))
+            self.news = generate_news(self.companies)
             self.cycle_number += 1
 
     def sync_to_player_data(self, player_data):
@@ -165,22 +199,16 @@ class StockMarketEngine:
         player_data["stock_market"].update({
             "cycle_number": self.cycle_number,
             "companies": serialize_companies(self.companies),
+            "news": self.news,
         })
 
     @classmethod
     def from_player_data(cls, player_data):
         """Build an engine from the market state saved on player_data."""
         market_data = player_data["stock_market"]
-        engine = cls(hydrate_companies(market_data["companies"]))
+        engine = cls([Company.from_save(data) for data in market_data["companies"]], market_data["news"])
         engine.cycle_number = market_data["cycle_number"]
         return engine
-
-
-def hydrate_companies(companies):
-    """Return live Company objects from their saved dicts."""
-    live = create_default_companies(history_cycles=0)
-    apply_companies_from_save(live, companies)
-    return live
 
 
 FILTER_GROUPS = (
@@ -279,6 +307,18 @@ def _price_chart(company):
     }
 
 
+def _company_row(company, holdings):
+    """One line of the company list: its price, how it moved this cycle, and the shares held."""
+    change_pct = (company.current_value - company.previous_value) / company.previous_value * 100
+    return {
+        "name": company.name,
+        "price": company.current_value,
+        "change_pct": change_pct,
+        "trend": "up" if change_pct > 0 else "down" if change_pct < 0 else "flat",
+        "owned": holdings.get(company.name, 0),
+    }
+
+
 @register_panel("stock_market", "Stock Market")
 def stock_market_panel(game, state):
     listed, selected = _listed_and_selected(game, state)
@@ -310,16 +350,21 @@ def stock_market_panel(game, state):
             "chart": _price_chart(selected),
         }
 
+    holdings = game.player_data["stock_holdings"]
+    prices = {company.name: company.current_value for company in game.market_engine.companies}
     return {
         "cycle": game.market_engine.cycle_number,
         "timer": timer,
         "credits": credits,
+        "portfolio_value": sum(shares * prices.get(name, 0) for name, shares in holdings.items()),
+        "news": [{"text": item["text"], "direction": item["direction"]} for item in game.market_engine.news],
         "filter_groups": FILTER_GROUPS,
         "filters": _market_filters(state),
-        "companies": [c.name for c in listed],
+        "companies": [_company_row(company, holdings) for company in listed],
         "selected": selected.name if selected else None,
         "detail": detail,
         "share_options": SHARE_OPTIONS,
+        "read_only": bool(state.get("read_only")),
     }
 
 
@@ -349,7 +394,10 @@ def _requested_shares(game, args):
 
 
 def _trade(game, state, args, side):
-    """Buy or sell the requested shares of the selected company at today's price."""
+    """Buy or sell the requested shares of the selected company at today's price. A market opened from the PDA
+    is for looking only."""
+    if state.get("read_only"):
+        return
     _, company = _listed_and_selected(game, state)
     shares = _requested_shares(game, args)
     if company is None or shares is None:
@@ -373,10 +421,10 @@ def _trade(game, state, args, side):
     record_trade(player_data, game.market_engine.cycle_number, side, company.name, shares,
                  company.current_value, total)
     verb = side.title()
-    game.add_note(f"{verb} {shares} shares of {company.name} "
+    game.add_note(f"{verb} {counted(shares, 'share')} of {company.name} "
                   f"at {company.current_value:.2f} cr/share (Total: {total:.2f} cr)")
     state["selected"] = company.name
-    game.alert("Transaction Complete", f"{verb} {shares} shares of {company.name} for {total:.2f} credits.")
+    game.alert("Transaction Complete", f"{verb} {counted(shares, 'share')} of {company.name} for {total:.2f} credits.")
 
 
 @panel_action("stock_market")

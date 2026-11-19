@@ -1,0 +1,24 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Air Monitor") }}
+<fieldset class="group">
+  <legend>Station Air</legend>
+  <p class="result">{{ p.gauge }}</p>
+</fieldset>
+<fieldset class="group">
+  <legend>Limits</legend>
+  {% for row in p.limits %}
+  <div class="system-row">
+    <b>{{ row.name }}</b>
+    <span>{{ "%.1f"|format(row.kpa) }} kPa &nbsp; <b style="color: {{ row.status[1] }}">{{ row.status[0] }}</b></span>
+  </div>
+  {% endfor %}
+</fieldset>
+<fieldset class="group">
+  <legend>Life Support</legend>
+  <p>Level {{ p.level }}. The pump refills the air from the reservoir at up to {{ "%.2f"|format(p.pump_rate) }} mol a second.</p>
+</fieldset>
+<fieldset class="group">
+  <legend>Vent the Station</legend>
+  <p class="muted">Dumps {{ "%.0f"|format(p.vent_share * 100) }}% of the station's air to space to clear what is in it.</p>
+  <div class="button-row">{{ ui.btn("Vent the Station", "panel.vent") }}</div>
+</fieldset>

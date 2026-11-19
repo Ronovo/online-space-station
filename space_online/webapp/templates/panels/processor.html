@@ -1,0 +1,17 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Processor") }}
+<p class="center">The processor grinds and presses solid items into chemicals the dispenser's beaker can take.</p>
+<div class="card-list" data-scroll-key="processor-items">
+  {% for item in p["items"] %}
+  <div class="item-card">
+    <div>
+      <div class="item-name">{{ item.label }}</div>
+      <div class="item-desc">Becomes {{ item.makes }}</div>
+    </div>
+    {{ ui.btn("Process", "panel.process", {"index": item.index}, "btn-small") }}
+  </div>
+  {% else %}
+  <p class="center">Nothing you are carrying can be processed.</p>
+  {% endfor %}
+</div>
+{{ ui.feedback(p.feedback) }}

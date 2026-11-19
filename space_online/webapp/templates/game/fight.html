@@ -1,0 +1,20 @@
+{% import "game/_ui.html" as ui %}
+<h1 class="screen-title">{{ s.heading }}</h1>
+<div class="fight-health">
+  <div class="bar"><div class="bar-fill" style="width: {{ (100 * s.hp / s.max_hp)|round|int }}%; background: #FF0000"></div></div>
+  <b>{{ s.hp }}/{{ s.max_hp }} HP</b>
+  {% if s.stunned %}<span class="fight-stunned">Stunned for {{ s.stunned }} more</span>{% endif %}
+</div>
+{% for line in s.log %}
+<p class="screen-desc">{{ line }}</p>
+{% endfor %}
+<p class="menu-text italic">Your attack: {{ s.attack }}. You block {{ s.block }}% of each hit.</p>
+<p class="menu-text">Your health: {{ s.health }}%. The fight is lost if it falls below {{ s.defeat_health }}%.</p>
+<div class="stack room-menu">
+  {% for item in s.actions %}
+    {{ ui.btn(item.label, item.action, cls="btn-wide") }}
+  {% endfor %}
+</div>
+<div class="stack system-menu">
+  {{ ui.btn("Hands", "game.hands", cls="btn-wide") }}
+</div>

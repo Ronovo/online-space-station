@@ -16,18 +16,11 @@
   let pending = Promise.resolve();
   let inFlight = 0;
   let draggingRange = false;
-  const alertQueue = [];
-  let alertSeq = 0;
   let choice = null;
   let answeringChoice = false;
-  let shownModalKey = null;
-
-  function queueAlerts(alerts) {
-    (alerts || []).forEach((alert) => {
-      alertSeq += 1;
-      alertQueue.push({ ...alert, id: alertSeq });
-    });
-  }
+  let shownChoiceId = null;
+  // Scroll positions by data-scroll-key, kept while a list is hidden under another panel.
+  let scrollMemory = {};
 
   function parseArgs(el) {
     try {
@@ -83,7 +76,6 @@
     if (data.title) {
       document.title = data.title;
     }
-    queueAlerts(data.alerts);
     // Responses queued before the player's answer still carry the old choice.
     if (action === "game.choose") {
       answeringChoice = false;
@@ -95,12 +87,12 @@
   }
 
   function captureState(preserveInputs) {
-    const state = { scroll: {}, inputs: {}, focusId: null, selection: null, windowY: window.scrollY };
+    const state = { inputs: {}, focusId: null, selection: null, windowY: window.scrollY };
     screen.querySelectorAll("[data-scroll-key]").forEach((el) => {
-      state.scroll[el.dataset.scrollKey] = el.scrollTop;
+      scrollMemory[el.dataset.scrollKey] = el.scrollTop;
     });
     if (preserveInputs) {
-      screen.querySelectorAll("input[id]:not([type=range]):not([type=radio]), textarea[id]").forEach((el) => {
+      screen.querySelectorAll("input[id]:not([type=range]):not([type=radio]), textarea[id], select[id]").forEach((el) => {
         state.inputs[el.id] = el.value;
       });
       const active = document.activeElement;
@@ -118,10 +110,13 @@
 
   function restoreState(state) {
     screen.querySelectorAll("[data-scroll-key]").forEach((el) => {
-      if (state.scroll[el.dataset.scrollKey] !== undefined) {
-        el.scrollTop = state.scroll[el.dataset.scrollKey];
+      if (scrollMemory[el.dataset.scrollKey] !== undefined) {
+        el.scrollTop = scrollMemory[el.dataset.scrollKey];
       }
     });
+    if (!screen.querySelector(".panel")) {
+      scrollMemory = {};
+    }
     Object.entries(state.inputs).forEach(([id, value]) => {
       const el = document.getElementById(id);
       if (el && screen.contains(el)) {
@@ -144,14 +139,31 @@
     window.scrollTo(0, state.windowY);
   }
 
+  function shownHealth() {
+    const readout = screen.querySelector("[data-health]");
+    return readout ? Number(readout.dataset.health) : null;
+  }
+
+  // Restarting the animation needs the class gone for a frame, which the reflow between gives it.
+  function flashHurt() {
+    screen.classList.remove("hurt");
+    void screen.offsetWidth;
+    screen.classList.add("hurt");
+  }
+
   // Returns false when the swap is postponed so the next tick retries it.
   function swapScreen(html, fromTick) {
     if (fromTick && draggingRange) {
       return false;
     }
     const state = captureState(fromTick);
+    const healthBefore = shownHealth();
     screen.innerHTML = html;
     restoreState(state);
+    const healthNow = shownHealth();
+    if (healthBefore !== null && healthNow !== null && healthNow < healthBefore) {
+      flashHurt();
+    }
     if (!fromTick) {
       const autofocus = screen.querySelector("[autofocus]");
       if (autofocus) {
@@ -162,45 +174,30 @@
     return true;
   }
 
+  // The modal only ever asks a question the game is waiting on. Everything else is in the station log.
   function renderModal() {
-    if (alertQueue.length) {
-      const alert = alertQueue[0];
-      showModal(`alert:${alert.id}`, alert.title, alert.message, alert.kind, [
-        { label: "OK", onClick: () => { alertQueue.shift(); renderModal(); } },
-      ]);
+    if (!choice) {
+      hideModal();
       return;
     }
-    if (choice) {
-      const current = choice;
-      showModal(`choice:${current.id}`, current.title, current.message, "info",
-        current.buttons.map((label, index) => ({
-          label,
-          onClick: () => {
-            choice = null;
-            answeringChoice = true;
-            hideModal();
-            enqueue("game.choose", { id: current.id, index });
-          },
-        })));
+    if (shownChoiceId === choice.id) {
       return;
     }
-    hideModal();
-  }
-
-  function showModal(key, title, message, kind, buttons) {
-    if (shownModalKey === key) {
-      return;
-    }
-    shownModalKey = key;
-    modal.dataset.kind = kind || "info";
-    modalTitle.textContent = title;
-    modalMessage.textContent = message;
-    modalButtons.replaceChildren(...buttons.map(({ label, onClick }) => {
+    const current = choice;
+    shownChoiceId = current.id;
+    modalTitle.textContent = current.title;
+    modalMessage.textContent = current.message;
+    modalButtons.replaceChildren(...current.buttons.map((label, index) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "btn";
       button.textContent = label;
-      button.addEventListener("click", onClick);
+      button.addEventListener("click", () => {
+        choice = null;
+        answeringChoice = true;
+        hideModal();
+        enqueue("game.choose", { id: current.id, index });
+      });
       return button;
     }));
     modal.classList.remove("hidden");
@@ -208,7 +205,7 @@
   }
 
   function hideModal() {
-    shownModalKey = null;
+    shownChoiceId = null;
     modal.classList.add("hidden");
   }
 
@@ -295,20 +292,12 @@
     document.addEventListener(type, () => { draggingRange = false; });
   });
 
-  modal.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && alertQueue.length) {
-      alertQueue.shift();
-      renderModal();
-    }
-  });
-
   setInterval(() => {
     if (inFlight === 0) {
       enqueue("tick");
     }
   }, TICK_MS);
 
-  queueAlerts(initial.alerts);
   choice = initial.choice || null;
   renderModal();
   updateShareTotals();

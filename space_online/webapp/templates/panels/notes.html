@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Character Notes</h2>
+{{ ui.panel_header("Character Notes") }}
 <div class="text-block" data-scroll-key="notes">
   {% for note in p.notes %}
     <p class="note">{% if note.time %}<span class="note-time">{{ note.time }}:</span><br>{% endif %}{{ note.text }}</p>
@@ -7,4 +7,3 @@
     <p>No notes recorded yet.</p>
   {% endfor %}
 </div>
-<div class="button-row">{{ ui.close_btn() }}</div>

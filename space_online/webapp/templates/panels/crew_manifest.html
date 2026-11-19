@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Station Crew Manifest</h2>
+{{ ui.panel_header("Station Crew Manifest") }}
 <div class="text-block" data-scroll-key="manifest">
   <p class="text-header">STATION CREW MANIFEST</p>
   <p class="text-header">====================</p>
@@ -12,4 +12,3 @@
     {% endfor %}
   {% endfor %}
 </div>
-<div class="button-row">{{ ui.close_btn() }}</div>

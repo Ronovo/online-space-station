@@ -36,7 +36,7 @@ function fakeServer() {
     calls.push({ url, headers: options.headers, ...JSON.parse(options.body) });
     const next = replies.shift();
     if (typeof next === 'function') return next();
-    return next || reply({ hash: 'same', title: 'Space Station Explorer', alerts: [], choice: null });
+    return next || reply({ hash: 'same', title: 'Space Station Explorer', choice: null });
   });
   vi.stubGlobal('fetch', fetch);
   return { calls, replies, fetch };
@@ -51,7 +51,7 @@ async function boot(screenHtml = '', initial = {}) {
     <div id="modal" class="modal hidden"><div class="modal-box">
       <h3 id="modal-title"></h3><p id="modal-message"></p><div id="modal-buttons" class="button-row"></div>
     </div></div>
-    <script id="initial-state" type="application/json">${JSON.stringify({ hash: 'h0', alerts: [], choice: null,
+    <script id="initial-state" type="application/json">${JSON.stringify({ hash: 'h0', choice: null,
       ...initial })}</script>`;
   server = fakeServer();
   browser = { href: '' };
@@ -71,62 +71,52 @@ async function click(element) {
   await settle();
 }
 
-describe('alerts and choices', () => {
-  it('shows alerts one at a time and lets OK or Escape move on', async () => {
-    await boot('', { alerts: [{ title: 'One', message: 'First', kind: 'warning' }, { title: 'Two', message: 'Second' },
-      { title: 'Three', message: 'Third' }] });
-    expect([$('modal-title').textContent, $('modal-message').textContent, $('modal').dataset.kind]).toEqual(
-      ['One', 'First', 'warning']);
-    expect(document.activeElement.textContent).toBe('OK');
-    await click($('modal-buttons').querySelector('button'));
-    expect([$('modal-title').textContent, $('modal').dataset.kind]).toEqual(['Two', 'info']);
-    $('modal').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect($('modal-title').textContent).toBe('Three');
-    $('modal').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
-    expect($('modal-title').textContent).toBe('Three');
-    $('modal').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(modalShown()).toBe(false);
-    $('modal').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
-    expect(modalShown()).toBe(false);
-  });
+async function tickTo(html, hash = 'h1', fields = {}) {
+  server.replies.push(reply({ hash, html, choice: null, ...fields }));
+  await vi.advanceTimersByTimeAsync(1000);
+}
 
+const pick = { id: 'c1', title: 'Drop', message: 'Sure?', buttons: ['Yes', 'No'] };
+
+describe('choices', () => {
   it('answers a choice and keeps it closed until the answer is back', async () => {
-    const pick = { id: 'c1', title: 'Bed', message: 'Save?', buttons: ['Yes', 'No'] };
     await boot('', { choice: pick });
-    expect(modalButtons()).toEqual(['Yes', 'No']);
+    expect([$('modal-title').textContent, $('modal-message').textContent, modalButtons()]).toEqual(
+      ['Drop', 'Sure?', ['Yes', 'No']]);
+    expect(document.activeElement.textContent).toBe('Yes');
     let answer;
     server.replies.push(() => new Promise((resolve) => { answer = resolve; }));
     await click($('modal-buttons').querySelectorAll('button')[1]);
     expect(modalShown()).toBe(false);
     expect(server.calls.at(-1)).toMatchObject({ action: 'game.choose', args: { id: 'c1', index: 1 }, hash: 'h0' });
-    answer(reply({ hash: 'h0', alerts: [{ title: 'Game Saved', message: 'Saved.' }], choice: null }));
+    answer(reply({ hash: 'h0', choice: { id: 'c2', title: 'Next', message: 'And this?', buttons: ['OK'] } }));
     await settle();
-    expect($('modal-title').textContent).toBe('Game Saved');
+    expect($('modal-title').textContent).toBe('Next');
   });
 
   it('ignores a choice from replies sent before the answer', async () => {
-    const pick = { id: 'c1', title: 'Bed', message: 'Save?', buttons: ['Yes', 'No'] };
     await boot('', { choice: pick });
     let tick;
     server.replies.push(() => new Promise((resolve) => { tick = resolve; }));
     await vi.advanceTimersByTimeAsync(1000);
     await click($('modal-buttons').querySelector('button'));
-    tick(reply({ hash: 'h0', alerts: [], choice: pick }));
+    tick(reply({ hash: 'h0', choice: pick }));
     await settle();
     expect(modalShown()).toBe(false);
     expect(actions()).toEqual(['tick', 'game.choose']);
   });
 
-  it('leaves an alert that is already showing as it is', async () => {
-    await boot('', { alerts: [{ title: 'One', message: 'First' }] });
-    const ok = $('modal-buttons').querySelector('button');
+  it('leaves a choice that is already showing as it is', async () => {
+    await boot('', { choice: pick });
+    const yes = $('modal-buttons').querySelector('button');
+    server.replies.push(reply({ hash: 'h0', choice: pick }));
     await vi.advanceTimersByTimeAsync(1000);
-    expect($('modal-buttons').querySelector('button')).toBe(ok);
+    expect($('modal-buttons').querySelector('button')).toBe(yes);
   });
 
   it('shows a new choice from the server', async () => {
     await boot();
-    server.replies.push(reply({ hash: 'h0', alerts: [], choice: { id: 'c2', title: 'Drop', message: 'Sure?',
+    server.replies.push(reply({ hash: 'h0', choice: { id: 'c2', title: 'Drop', message: 'Sure?',
       buttons: ['Yes'] } }));
     await vi.advanceTimersByTimeAsync(1000);
     expect([$('modal-title').textContent, modalButtons()]).toEqual(['Drop', ['Yes']]);
@@ -142,7 +132,7 @@ describe('the clock', () => {
     server.replies.push(() => new Promise((resolve) => { slow = resolve; }));
     await vi.advanceTimersByTimeAsync(3000);
     expect(actions()).toEqual(['tick']);
-    slow(reply({ hash: 'h0', alerts: [], choice: null }));
+    slow(reply({ hash: 'h0', choice: null }));
     await vi.advanceTimersByTimeAsync(1000);
     expect(actions()).toEqual(['tick', 'tick']);
     expect(server.calls[0]).toMatchObject({ args: {}, hash: 'h0', headers: { 'X-CSRF-Token': 'token-1' } });
@@ -150,8 +140,7 @@ describe('the clock', () => {
 
   it('swaps in a new screen and title and sends the new hash back', async () => {
     await boot('<p>old</p>');
-    server.replies.push(reply({ hash: 'h1', title: 'Bar', html: '<p>new</p>', alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo('<p>new</p>', 'h1', { title: 'Bar' });
     expect([$('screen').innerHTML, document.title]).toEqual(['<p>new</p>', 'Bar']);
     await vi.advanceTimersByTimeAsync(1000);
     expect(server.calls[1].hash).toBe('h1');
@@ -166,16 +155,31 @@ describe('the clock', () => {
     $('reason').focus();
     $('reason').setSelectionRange(1, 3);
     $('list').scrollTop = 40;
-    server.replies.push(reply({ hash: 'h1', html: `${form('')}<div data-scroll-key="new" id="new"></div>`, alerts: [],
-      choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo(`${form('')}<div data-scroll-key="new" id="new"></div>`);
     expect([$('reason').value, document.activeElement.id, $('reason').selectionStart, $('reason').selectionEnd])
       .toEqual(['Theft', 'reason', 1, 3]);
     expect([$('list').scrollTop, $('new').scrollTop]).toEqual([40, 0]);
     $('shares').focus();
-    server.replies.push(reply({ hash: 'h2', html: form(''), alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo(form(''), 'h2');
     expect(document.activeElement.id).toBe('shares');
+  });
+
+  it('keeps the option picked in a dropdown through a tick', async () => {
+    const form = '<select id="kind"><option value="healer">Healer</option><option value="warper">Warper</option></select>';
+    await boot(form);
+    $('kind').value = 'warper';
+    await tickTo(form);
+    expect($('kind').value).toBe('warper');
+  });
+
+  it('remembers where a list was scrolled while another panel covers it, until every panel closes', async () => {
+    const crewPanel = '<section class="panel"><div data-scroll-key="crew" id="crew"></div></section>';
+    await boot(crewPanel);
+    $('crew').scrollTop = 60;
+    for (const html of ['<section class="panel"><p>charge</p></section>', crewPanel]) await tickTo(html, html);
+    expect($('crew').scrollTop).toBe(60);
+    for (const html of ['<p>hallway</p>', crewPanel]) await tickTo(html, html);
+    expect($('crew').scrollTop).toBe(0);
   });
 
   it('forgets inputs that are gone after the swap and leaves fields outside the screen alone', async () => {
@@ -183,20 +187,17 @@ describe('the clock', () => {
     document.body.insertAdjacentHTML('beforeend', '<input id="outside" value="kept">');
     $('reason').value = 'Theft';
     $('reason').focus();
-    server.replies.push(reply({ hash: 'h1', html: '<p>panel closed</p>', alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo('<p>panel closed</p>');
     expect($('reason')).toBeNull();
     $('outside').focus();
-    server.replies.push(reply({ hash: 'h2', html: '<input id="outside">', alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo('<input id="outside">', 'h2');
     expect([$('outside').value, document.activeElement.value]).toEqual(['', 'kept']);
   });
 
   it('puts the window back where it was scrolled', async () => {
     await boot('<p>old</p>');
     window.scrollY = 120;
-    server.replies.push(reply({ hash: 'h1', html: '<p>new</p>', alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo('<p>new</p>');
     expect(window.scrollTo).toHaveBeenLastCalledWith(0, 120);
   });
 
@@ -207,26 +208,26 @@ describe('the clock', () => {
       get() { throw new DOMException('Selection is not supported on this input type.', 'InvalidStateError'); },
     });
     $('email').focus();
-    server.replies.push(reply({ hash: 'h1', html: screen, alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo(screen);
     expect(document.activeElement.id).toBe('email');
     $('pick').focus();
-    server.replies.push(reply({ hash: 'h2', html: screen, alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo(screen, 'h2');
     expect(document.activeElement.id).toBe('pick');
   });
 
   it('waits to swap the screen while a slider is being dragged', async () => {
     await boot('<input id="level" type="range" value="3">');
     $('level').dispatchEvent(new Event('pointerdown', { bubbles: true }));
-    server.replies.push(reply({ hash: 'h1', html: '<p>new</p>', alerts: [], choice: null }));
-    await vi.advanceTimersByTimeAsync(1000);
+    await tickTo('<p>new</p>');
     expect($('level')).not.toBeNull();
     document.dispatchEvent(new Event('pointerup'));
     await vi.advanceTimersByTimeAsync(1000);
     expect(server.calls[1].hash).toBe('h0');
     document.dispatchEvent(new Event('pointerdown'));
+    $('level').dispatchEvent(new Event('pointerdown', { bubbles: true }));
     document.dispatchEvent(new Event('pointercancel'));
+    await tickTo('<p>new</p>', 'h2');
+    expect($('screen').innerHTML).toBe('<p>new</p>');
   });
 });
 
@@ -247,16 +248,16 @@ describe('player actions', () => {
   it('applies the reply to a button straight away and focuses its autofocus field', async () => {
     await boot('<button type="button" id="go" data-action="room.storage">Storage</button>');
     server.replies.push(reply({ hash: 'h1', html: '<input id="field" autofocus>'
-      + '<button type="button" id="close" data-action="game.close_panel">Close</button>', alerts: [], choice: null }));
+      + '<button type="button" id="close" data-action="game.close_panel">Close</button>', choice: null }));
     await click($('go'));
     expect(document.activeElement.id).toBe('field');
-    server.replies.push(reply({ hash: 'h2', html: '<p>Quarters</p>', alerts: [], choice: null }));
+    server.replies.push(reply({ hash: 'h2', html: '<p>Quarters</p>', choice: null }));
     await click($('close'));
     expect($('screen').innerHTML).toBe('<p>Quarters</p>');
   });
 
-  it('applies a reply that leaves out alerts and the choice', async () => {
-    await boot('<p>old</p>', { alerts: undefined });
+  it('applies a reply that leaves out the choice', async () => {
+    await boot('<p>old</p>');
     server.replies.push(reply({ hash: 'h1', html: '<p>new</p>' }));
     await vi.advanceTimersByTimeAsync(1000);
     expect([$('screen').innerHTML, modalShown()]).toEqual(['<p>new</p>', false]);
@@ -303,14 +304,38 @@ describe('player actions', () => {
 
   it('shows a slider value as it moves', async () => {
     await boot('<input id="level" type="range" value="4"><output for="level">4</output><input id="lone" type="range">'
-      + '<input id="note" type="text">');
+      + '<input id="note" type="text" value="hi"><output for="note">-</output><output for="away">-</output>');
     $('level').value = '9';
     $('level').dispatchEvent(new Event('input', { bubbles: true }));
     $('lone').dispatchEvent(new Event('input', { bubbles: true }));
     $('note').dispatchEvent(new Event('input', { bubbles: true }));
-    document.body.insertAdjacentHTML('beforeend', '<input id="away" type="range">');
+    document.body.insertAdjacentHTML('beforeend', '<input id="away" type="range" value="2">');
     $('away').dispatchEvent(new Event('input', { bubbles: true }));
-    expect(document.querySelector('output').textContent).toBe('9');
+    expect([...document.querySelectorAll('output')].map((output) => output.textContent)).toEqual(['9', '-', '-']);
+  });
+});
+
+describe('getting hurt', () => {
+  const bar = (health) => `<span data-health="${health}">Health ${health}%</span>`;
+  const hurt = () => $('screen').classList.contains('hurt');
+
+  it('flashes the screen when the health shown drops, and not when it holds or rises', async () => {
+    await boot(bar(90));
+    expect(hurt()).toBe(false);
+    await tickTo(bar(90));
+    expect(hurt()).toBe(false);
+    await tickTo(bar(72), 'h2');
+    expect(hurt()).toBe(true);
+    $('screen').classList.remove('hurt');
+    await tickTo(bar(100), 'h3');
+    expect(hurt()).toBe(false);
+  });
+
+  it('does not flash when a screen has no health readout', async () => {
+    await boot(bar(90));
+    await tickTo('<p>no bar</p>');
+    await tickTo(bar(10), 'h2');
+    expect(hurt()).toBe(false);
   });
 });
 
@@ -384,9 +409,8 @@ describe('the connection', () => {
   });
 
   it('shows the choice again when the answer could not be sent', async () => {
-    const pick = { id: 'c1', title: 'Bed', message: 'Save?', buttons: ['Yes', 'No'] };
     await boot('', { choice: pick });
-    server.replies.push(() => Promise.reject(new TypeError('offline')), reply({ hash: 'h0', alerts: [], choice: pick }));
+    server.replies.push(() => Promise.reject(new TypeError('offline')), reply({ hash: 'h0', choice: pick }));
     await click($('modal-buttons').querySelector('button'));
     await vi.advanceTimersByTimeAsync(1000);
     expect(modalButtons()).toEqual(['Yes', 'No']);

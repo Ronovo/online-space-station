@@ -3,11 +3,29 @@
 {% block page %}
 <h2>Limbs and damage</h2>
 <ul>
-  <li>You have six limbs: head, chest, both arms and both legs. Each runs from 100% (unhurt) down to 0%. Above 75% is
-    Healthy, above 40% is Injured, and anything lower is Critical.</li>
+  <li>You have six limbs: head, chest, both arms and both legs. Each runs from 100% (unhurt) down to 0%. Only 100% is
+    Healthy; above 75% is Minor injuries, above 40% is Injured, and anything lower is Critical. MedBay bills for
+    every point below 100%.</li>
   <li>On top of that you can take burn, poison and oxygen damage, each from 0% up to 100%. Under 10% is Clear, under
     30% Mild, under 60% Moderate, and Severe after that.</li>
-  <li>Hallway accidents, falls while drunk, and failing life support are the usual causes.</li>
+  <li>Hallway accidents, falls while drunk, room hazards, fights and bad air are the usual causes.</li>
+  <li>Your overall health is the average of your limbs, brought down by burn, poison and oxygen damage. It shows in
+    the status bar, and the screen flashes red whenever it drops.</li>
+  <li>A single limb at 0% does nothing on its own: only your overall health counts. A fight is lost when it falls
+    below {{ facts.combat.DEFEAT_HEALTH }}%, which the fight screen shows next to your health.</li>
+</ul>
+
+<h2>Hunger and thirst</h2>
+<ul>
+  <li>Both climb from 0% all shift: hunger by {{ facts.needs.NEED_PER_MINUTE.hunger }}% a minute and thirst by
+    {{ facts.needs.NEED_PER_MINUTE.thirst }}%. The Character Sheet shows them, and you are told at
+    {{ facts.needs.NEED_WARNING }}% and at 100%.</li>
+  <li>At 100%, a limb loses {{ facts.needs.STARVING_DAMAGE }}% every {{ facts.needs.STARVING_HURT_SECONDS }} seconds
+    until you eat or drink.</li>
+  <li>Food brings hunger down: a cooked dish by {{ facts.feeds.dish }}%, a basic from the menu by
+    {{ facts.feeds.basic }}%, and plain produce by {{ facts.needs.DEFAULT_FEEDS }}%. See {{ w.link("Kitchen") }}.</li>
+  <li>A drink brings thirst down by {{ facts.needs.DEFAULT_QUENCHES }}%, or less if it is alcoholic. See
+    {{ w.link("Bar") }}.</li>
 </ul>
 
 <h2>Getting treated</h2>
@@ -17,15 +35,16 @@
     {% for kind, multiplier in facts.cost_multipliers.items() %}{{ kind }} {{ multiplier }}{{ ", " if not loop.last }}{% endfor %}
     credits. See {{ w.link("Medical") }}.</li>
   <li>A Medkit or an Aloe heals a little on the spot. See {{ w.link("Items and Hands") }}.</li>
+  <li><b>Rest in Bed</b> in your Quarters mends every limb by {{ facts.rest_per_minute }}% a minute. The bed in the
+    crew shuttle's Medical Bay mends them faster. See {{ w.link("Rounds and the Shuttle") }}.</li>
+  <li>Every treatment in MedBay uses a remedy from the station stores. With none left, nobody can be treated. See
+    {{ w.link("Station Stores") }}.</li>
 </ul>
 
 <h2>Oxygen</h2>
 <p>
-  Oxygen damage comes from underpowered life support. While life support works, it wears off on its own below
-  {{ facts.oxygen.DOCTOR_REQUIRED_FLOOR }}%. At {{ facts.oxygen.DOCTOR_REQUIRED_FLOOR }}% or more, only a Doctor can
-  clear it. If it reaches {{ facts.oxygen.DEATH_THRESHOLD }}%, emergency systems revive you in your Quarters with every
-  limb at {{ facts.oxygen.POST_DEATH_LIMB_HEALTH }}% and {{ facts.oxygen.POST_DEATH_OXYGEN }}% oxygen damage. See
-  {{ w.link("Life Support") }}.
+  Bad air gives oxygen or poison damage. Outside a Peaceful round, oxygen damage that reaches
+  {{ facts.oxygen.DEATH_THRESHOLD }}% kills you. See {{ w.link("Life Support") }}.
 </p>
 
 <h2>Alcohol</h2>

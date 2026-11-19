@@ -1,0 +1,54 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set c = facts.chemicals %}
+{% block page %}
+<p>
+  The Chemistry Lab is the east door of the Science Hall, east of the East Section of the ring.
+  {{ w.link("Atmospherics") }} is its north door and the {{ w.link("Research") }} Lab its south door. Visitors can talk to the Scientist posted here; the work happens at
+  the Chemistry Station.
+</p>
+
+<h2>The Chemistry Station</h2>
+<p>Scientists, the Head of Personnel and the Captain can work it. See {{ w.link("Scientist") }}.</p>
+<ul>
+  <li><b>Chemical Dispenser</b>: add up to {{ c.MAX_BEAKER_CHEMICALS }} chemicals to the beaker and mix. If they match
+    a formula, the compound goes into your inventory. The dispenser has an endless supply of:
+    {{ c.DISPENSER_CHEMICALS|join(", ") }}.</li>
+  <li><b>Processor</b>: breaks a solid item you're carrying down into a chemical the beaker can take.</li>
+  <li><b>Formula Book</b>: every compound and what goes into it.</li>
+  <li><b>Send Remedies to MedBay</b>: sends the remedies you carry to MedBay's stock. See
+    {{ w.link("Station Stores") }}.</li>
+</ul>
+
+<h2>Adding items from around the station</h2>
+<ul>
+  <li>What the Processor makes goes straight in. It shows in the dispenser under <b>Inventory</b>, with how many you
+    have, and is used up when you mix.</li>
+  <li>An alcoholic drink from the {{ w.link("Bar") }} goes in as Ethanol, and a juice goes in as Fruit Acid.</li>
+  <li>Solids have to go through the Processor first:</li>
+</ul>
+<table class="wiki-table">
+  <thead><tr><th>Item</th><th>Becomes</th></tr></thead>
+  <tbody>
+    {% for item, result in facts.processor %}
+    <tr><td>{{ item }}</td><td>{{ result }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>Other drinks, like Water or Cola, and items like tools can't be processed or added.</p>
+
+<h2>Compounds</h2>
+<table class="wiki-table">
+  <thead><tr><th>Compound</th><th>Formula</th><th>What it does</th></tr></thead>
+  <tbody>
+    {% for name, compound in c.COMPOUNDS.items() %}
+    <tr><td>{{ name }}</td><td>{{ compound.ingredients|join(", ") }}</td><td>{{ compound.desc }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>
+  The remedies are used from your inventory like a medkit, and are only used up when they treat something. See
+  {{ w.link("Health") }}. The Acid Flask is a Chemistry recipe: a one-use thrown weapon that works in any fight. See
+  {{ w.link("Combat and Weapons") }}.
+</p>
+{% endblock %}

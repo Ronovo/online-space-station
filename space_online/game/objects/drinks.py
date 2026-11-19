@@ -1,6 +1,14 @@
-"""Drink definitions and the bartender mixer, recipe book, and ingredient panels."""
+"""Drink definitions, what the bartender's mixer, recipe book, and ingredient list are made of, and the coffee the
+crew shuttle's machine brews."""
 
-from space_online.game.helper_methods.ui_panels import panel_action, register_panel
+from space_online.game.helper_methods.errands import with_article
+from space_online.game.helper_methods.mixing import RecipeBook, add_to_stock, match_recipe, register_recipe_book
+from space_online.game.helper_methods.needs import DEFAULT_QUENCHES
+from space_online.game.helper_methods.ui_panels import register_panel
+from space_online.game.objects.items import add_to_inventory
+
+# Alcohol does less for a thirst than anything else on the menu.
+ALCOHOL_QUENCHES = 25
 
 DRINKS_MENU = {
     "Beer": {"price": 10, "alcohol_content": 1, "desc": "A refreshing glass of regular beer."},
@@ -56,7 +64,7 @@ MIXED_DRINKS = {
         "desc": "A tangy, refreshing cocktail with a salt rim.",
     },
     "Bloody Mary": {
-        "ingredients": ["Vodka", "Tomato Juice", "Hot Sauce", "Worcestershire Sauce"],
+        "ingredients": ["Vodka", "Tomato Juice", "Hot Sauce", "Worcestershire Sauce", "Celery"],
         "price": 28,
         "alcohol_content": 2,
         "desc": "A savory, spicy morning cocktail.",
@@ -161,7 +169,7 @@ MIXED_DRINKS = {
         "ingredients": ["Gin", "Lime Juice", "Sugar", "Mint", "Helium Gas"],
         "price": 38,
         "alcohol_content": 2,
-        "desc": "A unique drink that temporarily changes your voice.",
+        "desc": "A fizzy gin cocktail with a hint of helium. It tastes like a party.",
     },
     "Nebula Cloud": {
         "ingredients": ["Whiskey", "Honey", "Dry Ice", "Cinnamon"],
@@ -205,6 +213,27 @@ def is_drink_alcoholic(name, details):
     return any(ing in SPIRITS for ing in details.get("ingredients", []))
 
 
+def drink_id(name):
+    return f"drink_{name.lower().replace(' ', '_')}"
+
+
+def drink_item(name, details):
+    """The inventory item for a glass of the drink called name, made from its menu or recipe details."""
+    alcoholic = is_drink_alcoholic(name, details)
+    return {
+        "id": drink_id(name),
+        "name": name,
+        "description": details["desc"],
+        "category": "Drink",
+        "attributes": {
+            "alcoholic": alcoholic,
+            "alcohol_content": details.get("alcohol_content", 0),
+            "quenches": ALCOHOL_QUENCHES if alcoholic else DEFAULT_QUENCHES,
+        },
+        "actions": ["examine", "drink", "drop"],
+    }
+
+
 def _is_mixer(ingredient):
     return any(word in ingredient for word in ("Juice", "Water", "Cola", "Ale", "Sprite"))
 
@@ -240,15 +269,6 @@ def categorize_ingredients_exclusive(ingredients=None):
     return spirits, mixers, modifiers, specials
 
 
-def match_recipe(ingredients):
-    """Return (drink_name, drink_data) if ingredients match a known recipe, else (None, None)."""
-    sorted_ingredients = sorted(ingredients)
-    for drink_name, drink_data in MIXED_DRINKS.items():
-        if sorted_ingredients == sorted(drink_data["ingredients"]):
-            return drink_name, drink_data
-    return None, None
-
-
 def get_mix_feedback(ingredients):
     """Return failure feedback for an unknown ingredient mix."""
     if len(ingredients) > 5:
@@ -260,7 +280,7 @@ def get_mix_feedback(ingredients):
     return "This combination doesn't match any known recipe. Try a different mix."
 
 
-def _mixer_categories():
+def mixer_shelf(game):
     spirits, mixers, modifiers, specials = categorize_ingredients()
     return {
         "All": ("All Ingredients", AVAILABLE_INGREDIENTS),
@@ -271,124 +291,18 @@ def _mixer_categories():
     }
 
 
-def _mixer_category(state):
-    categories = _mixer_categories()
-    key = state.get("category", "All")
-    return key if key in categories else "All", categories
-
-
-@register_panel("mixer", "Bartender's Drink Mixer")
-def mixer_panel(game, state):
-    key, categories = _mixer_category(state)
-    heading, items = categories[key]
-    return {
-        "categories": list(categories),
-        "category": key,
-        "heading": f"--- {heading} ---",
-        "ingredients": sorted(items),
-        "selected_ingredient": state.get("selected_ingredient"),
-        "glass": state.get("glass", []),
-        "selected_glass": state.get("selected_glass"),
-        "result": state.get("result"),
-    }
-
-
-@panel_action("mixer", "category")
-def mixer_category(game, state, args):
-    if args["name"] in _mixer_categories():
-        state["category"] = args["name"]
-        state.pop("selected_ingredient", None)
-
-
-@panel_action("mixer")
-def select_ingredient(game, state, args):
-    if args["name"] in AVAILABLE_INGREDIENTS:
-        state["selected_ingredient"] = args["name"]
-
-
 MAX_GLASS_POURS = 10
 
 
-@panel_action("mixer")
-def add_ingredient(game, state, args):
-    key, categories = _mixer_category(state)
-    ingredient = state.get("selected_ingredient")
-    glass = state.setdefault("glass", [])
-    if len(glass) >= MAX_GLASS_POURS:
-        game.alert("Mixer", "The glass is full.", kind="warning")
-    elif ingredient in categories[key][1]:
-        glass.append(ingredient)
-
-
-@panel_action("mixer")
-def select_glass(game, state, args):
-    state["selected_glass"] = int(args["index"])
-
-
-@panel_action("mixer")
-def remove_ingredient(game, state, args):
-    glass = state.setdefault("glass", [])
-    index = state.pop("selected_glass", None)
-    if index is not None and 0 <= index < len(glass):
-        glass.pop(index)
-
-
-@panel_action("mixer")
-def clear_glass(game, state, args):
-    state["glass"] = []
-    state.pop("selected_glass", None)
-
-
-@panel_action("mixer")
-def mix(game, state, args):
-    ingredients = state.get("glass", [])
-    if not ingredients:
-        state["result"] = {"text": "You need to add ingredients first!", "color": "white"}
-        return
-
-    drink_match, drink_data = match_recipe(ingredients)
-    if drink_match:
-        stock = game.player_data["bar_mixed_stock"]
-        stock[drink_match] = stock.get(drink_match, 0) + 1
-        state["result"] = {
-            "text": (
-                f"Success! You've mixed a {drink_match}.\n"
-                f"{drink_data['desc']}\n"
-                f"(Qty: {stock[drink_match]})"
-            ),
-            "color": "lightgreen",
-        }
-        game.add_note(f"Successfully mixed a {drink_match} at the bar.")
-    else:
-        state["result"] = {
-            "text": f"You've created an unknown concoction. {get_mix_feedback(ingredients)}",
-            "color": "red",
-        }
-
-    state["glass"] = []
-    state.pop("selected_glass", None)
-
-
-@panel_action("mixer")
-def recipes(game, state, args):
-    game.open_panel("recipes")
-
-
-RECIPE_CATEGORIES = (
-    ("all", "All Recipes"),
-    ("basic", "Basic Recipes"),
-    ("advanced", "Advanced Recipes"),
-    ("special", "Station Specials"),
-)
-
-
-def _recipe_entry(drink_name):
-    drink_data = MIXED_DRINKS[drink_name]
+def mix_drink(game, ingredients):
+    drink, recipe = match_recipe(MIXED_DRINKS, ingredients)
+    if not drink:
+        return {"text": f"You've created an unknown concoction. {get_mix_feedback(ingredients)}", "color": "red"}
+    quantity = add_to_stock(game.player_data["bar_mixed_stock"], drink)
+    game.add_note(f"Successfully mixed {with_article(drink)} at the bar.")
     return {
-        "name": drink_name,
-        "ingredients": ", ".join(drink_data["ingredients"]),
-        "price": drink_data["price"],
-        "desc": drink_data["desc"],
+        "text": f"Success! You've mixed {with_article(drink)}.\n{recipe['desc']}\n(Qty: {quantity})",
+        "color": "lightgreen",
     }
 
 
@@ -400,57 +314,22 @@ def _recipe_sections(category):
     basic = ("BASIC COCKTAILS", sorted(BASIC_RECIPES))
     advanced = ("ADVANCED COCKTAILS", _advanced_recipes())
     special = ("STATION SPECIALTIES", sorted(SPECIAL_RECIPES))
-    chosen = {"basic": [basic], "advanced": [advanced], "special": [special]}.get(
-        category, [basic, advanced, special]
-    )
-    return [
-        {"title": title, "recipes": [_recipe_entry(d) for d in drinks]}
-        for title, drinks in chosen
-    ]
+    return {"basic": [basic], "advanced": [advanced], "special": [special]}.get(category, [basic, advanced, special])
 
 
-@register_panel("recipes", "Drink Recipes")
-def recipes_panel(game, state):
-    query = (state.get("query") or "").lower().strip()
-    if not query:
-        return {
-            "categories": RECIPE_CATEGORIES,
-            "header": "BARTENDER'S RECIPE BOOK",
-            "sections": _recipe_sections(state.get("category", "all")),
-            "query": "",
-        }
-
-    results = [
-        _recipe_entry(name)
-        for name, data in MIXED_DRINKS.items()
-        if query in name.lower()
-        or any(query in ingredient.lower() for ingredient in data["ingredients"])
-        or query in data["desc"].lower()
-    ]
-    return {
-        "categories": RECIPE_CATEGORIES,
-        "header": f"SEARCH RESULTS FOR '{query}'",
-        "sections": [{"title": None, "recipes": results}],
-        "empty_message": None if results else "No recipes found matching your search.",
-        "query": state.get("query", ""),
-    }
-
-
-@panel_action("recipes", "category")
-def recipes_category(game, state, args):
-    if args["name"] in dict(RECIPE_CATEGORIES):
-        state["category"] = args["name"]
-        state["query"] = ""
-
-
-@panel_action("recipes")
-def search(game, state, args):
-    state["query"] = str(args.get("query", ""))[:100]
-
-
-@panel_action("recipes")
-def ingredients(game, state, args):
-    game.open_panel("ingredients")
+register_recipe_book(RecipeBook(
+    panel="recipes",
+    title="Bartender's Recipe Book",
+    recipes=MIXED_DRINKS,
+    categories=(
+        ("all", "All Recipes"),
+        ("basic", "Basic Recipes"),
+        ("advanced", "Advanced Recipes"),
+        ("special", "Station Specials"),
+    ),
+    sections=_recipe_sections,
+    ingredients_panel="ingredients",
+))
 
 
 @register_panel("ingredients", "Available Ingredients")
@@ -464,3 +343,30 @@ def ingredients_panel(game, state):
             ("SPECIAL INGREDIENTS", specials),
         ],
     }
+
+
+COFFEE_GROUNDS = "Coffee Grounds"
+COFFEE_RECIPES = {
+    "Coffee": {
+        "ingredients": [COFFEE_GROUNDS, "Water"],
+        "desc": "A cup of hot black coffee from the shuttle's machine.",
+    },
+}
+COFFEE_MACHINE_CAPACITY = 2
+
+
+def coffee_shelf(game):
+    return {"All": ("Supplies", [COFFEE_GROUNDS, "Water"])}
+
+
+def brew_coffee(game, ingredients):
+    """Brew what is in the coffee machine. Only grounds and water make a cup, which goes in the inventory."""
+    name, recipe = match_recipe(COFFEE_RECIPES, ingredients)
+    if name:
+        add_to_inventory(game.player_data, drink_item(name, recipe))
+        game.add_note(f"Brewed {with_article(name.lower())} in the shuttle's coffee machine.")
+        return {"text": f"The machine gurgles and fills a cup. You take {with_article(name.lower())}.",
+                "color": "lightgreen"}
+    if COFFEE_GROUNDS not in ingredients:
+        return {"text": "The water runs through clear. It needs coffee grounds.", "color": "orange"}
+    return {"text": "The grounds scorch on the hot plate. It needs water.", "color": "orange"}

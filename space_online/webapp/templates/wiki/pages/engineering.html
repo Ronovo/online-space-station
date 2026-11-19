@@ -3,29 +3,149 @@
 {% block page %}
 <h2>For visitors</h2>
 <ul>
-  <li><b>Access Fabricator</b>: anyone can make items here, free.
-    {% for category, names in facts.fabricator.items() %}{{ category }}s: {{ names|join(", ") }}.{{ " " if not loop.last }}{% endfor %}</li>
+  <li><b>Access Fabricator</b>, under Room Options in the Engineering Bay: anyone can make items here. It builds out
+    of the ore in the station stores, which the Miner keeps filled, and shows how much is left. See {{ w.link("Station Stores") }}.
+    {% for category, names in facts.fabricator.items() %}{{ category }}s: {{ names|join(", ") }}.{{ " " if not loop.last }}{% endfor %}
+    Books are free. The rest cost ore:
+    {% for name, ore in facts.fabrication_ore.items() %}{{ name }} {{ ore }}{{ ", " if not loop.last }}{% endfor %}.</li>
   <li><b>Talk to Engineer</b>, while the Engineer is on duty. They're usually too busy to chat.</li>
 </ul>
 
 <h2>The Engineering Station</h2>
 <p>
   Engineers, the Head of Personnel and the Captain can work it. Its <b>Engineering Panel</b> runs the station's power:
-  battery status, the solar array switch, a level for each system, and the power modes. See {{ w.link("Power") }}.
+  battery status, what the solar array and the Combustion Engine are charging, the solar array switch, a level for each
+  system, and the power modes. See {{ w.link("Power") }}. Its <b>Combustion Engine</b> panel runs the engine below.
 </p>
+
+{% set e = facts.engine %}
+<h2>The Combustion Engine</h2>
+<p>
+  The station's main power. It burns a fuel and an oxidizer in a burn chamber of {{ e.BURN_CHAMBER.volume }} L, rated to
+  {{ e.BURN_CHAMBER.rated }} kPa. The chamber gas heats the <b>hot loop</b>, a radiator cools the <b>cold loop</b>
+  toward the cold of space, and the generator between the two charges the battery in step with how far apart they are,
+  up to {{ e.OUTPUT_CAP|int }}% a minute. The spent gas goes out to space. It uses the same gas rules as
+  {{ w.link("Atmospherics") }}.
+</p>
+
+<h3>The canister bay</h3>
+<ul>
+  <li>The bay has {{ e.BAY_SLOTS }} slots. A shift starts with a canister of
+    {% for name, role, gas in e.LINES.values() %}{{ gas }} on the {{ name }} line{{ " and one of " if not loop.last }}{% endfor %},
+    enough to run at the safe setting for the longest shift: the Oxygen lasts about
+    {{ (e.CANISTER_MOLES / (e.SAFE_SETTINGS.injection * e.INJECTION_STEP * (1 - e.SAFE_SETTINGS.mixer / 100)) / 60)|round|int }}
+    minutes.</li>
+  <li>Canisters come down the tube from Atmospherics, sent with <b>Send to Engineering</b> at the Canister Rack, and go
+    back with <b>Send to Atmospherics</b>. The other end needs a free slot, and a connected canister has to be
+    disconnected first.</li>
+  <li>A canister in the bay does nothing until you <b>Connect as Fuel</b> or <b>Connect as Oxidizer</b>. One canister
+    fits on a line; connecting another takes the first one off. A pre-mixed canister on the Fuel line with the mixer at
+    100 works too.</li>
+  <li>While the engine runs you can't take a canister off a line it is drawing from. Shut it down first.</li>
+</ul>
+
+<h3>The controls</h3>
+<ul>
+  <li><b>Mixer ratio</b>: the share of the injected gas that comes from the Fuel line, 0 to 100. The clean burn is two
+    parts fuel to three parts oxidizer. Too lean runs cool, and too rich sends unburnt fuel out of the exhaust.</li>
+  <li><b>Injection rate</b>: 0 to 10, each step {{ e.INJECTION_STEP|round(2) }} mol a second. More gas burns hotter and
+    gives more, until the hot loop reaches its limit or the chamber its rating.</li>
+  <li><b>Coolant flow</b>: 0 to 10, how hard the radiator cools the cold loop. More flow widens the gap between the
+    loops and raises the output. With none the two loops meet, the output falls to nothing, and the hot loop keeps
+    climbing.</li>
+  <li><b>Ignite</b> lights it, given a canister on the Fuel line. <b>Shut Down</b> stops the injection.
+    <b>Emergency Vent</b> dumps the chamber to space and stops the engine.</li>
+</ul>
+<p>
+  Calibrating is finding, for the gases you have connected, the mixer ratio that burns clean and the injection and
+  coolant that hold the hot loop just under its limit. Nothing tells you the numbers: the gauges and the hint line do.
+</p>
+
+<h3>The readouts</h3>
+<p>
+  The panel reads the chamber's gauge, the hot loop, the cold loop and the gap between them, the output in % a minute,
+  the chamber's damage, and one hint, the most urgent first:
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Hint</th><th>What it means</th></tr></thead>
+  <tbody>
+    <tr><td>Coolant line cut</td><td>Sabotage. No coolant flows until it is repaired.</td></tr>
+    <tr><td>Pumps stalling</td><td>The chamber is past {{ (e.STALL_WARNING * 100)|int }}% of its rating.</td></tr>
+    <tr><td>Hot loop near its limit</td><td>The hot loop is past {{ (e.NEAR_LIMIT * 100)|int }}% of its
+      {{ e.HOT_LIMIT }} K limit.</td></tr>
+    <tr><td>Not running</td><td>The engine is stopped.</td></tr>
+    <tr><td>Burning rich: unburnt fuel in the exhaust</td><td>More fuel than the oxidizer can burn. Lower the
+      mixer.</td></tr>
+    <tr><td>Burning lean</td><td>More oxidizer than the fuel needs. Raise the mixer.</td></tr>
+    <tr><td>Burning clean</td><td>The mix is right.</td></tr>
+  </tbody>
+</table>
+
+<h3>Fuels and oxidizers</h3>
+<p>What each pairing gives after ten minutes at the safe setting (mixer {{ e.SAFE_SETTINGS.mixer }}, injection
+  {{ e.SAFE_SETTINGS.injection }}, coolant {{ e.SAFE_SETTINGS.coolant }}):</p>
+<table class="wiki-table">
+  <thead><tr><th>Fuel</th><th>Oxidizer</th><th>Output (% a minute)</th></tr></thead>
+  <tbody>
+    {% for fuel, oxidizer, output in facts.engine_burns %}
+    <tr><td>{{ fuel }}</td><td>{{ oxidizer }}</td><td>{{ "%.2f"|format(output) }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>
+  Plasma gives the most and is the easiest to overheat. Hydrogen is forgiving. Nitrous Oxide is a weaker oxidizer, so
+  it runs cooler.
+</p>
+
+<h3>When it goes wrong</h3>
+<ul>
+  <li><b>Pumps stall</b>: over {{ e.BURN_CHAMBER.rated }} kPa, injection and exhaust stop until the pressure drops, and
+    the output sags. The log warns at {{ (e.STALL_WARNING * 100)|int }}%.</li>
+  <li><b>Overheat</b>: while the engine runs with the hot loop over {{ e.HOT_LIMIT }} K, the chamber takes
+    {{ e.OVERHEAT_DAMAGE|int }}% damage a second. The log says when the loop goes over, and the log and an Engineer's PDA
+    warn at {% for level in e.DAMAGE_WARNINGS %}{{ level }}%{{ " and " if not loop.last }}{% endfor %} damage.</li>
+  <li><b>Chamber fire</b>: at 100% the engine shuts down and a fire breaks out in the Engineering Bay. The engine stays
+    dead until it is repaired.</li>
+  <li><b>Burst</b>: if the chamber is past {{ e.BURST_PRESSURE }} times its rating when it fails, it bursts instead: a
+    hull breach in the Engineering Bay, and the blast takes {{ facts.atmos.RUPTURE_DAMAGE }}% off a limb if you are in
+    the room. It never kills outright.</li>
+  <li><b>Flame-out</b>: with nothing left to burn, from an empty canister or the injection at 0, the engine goes out.
+    The log says so. It does no damage.</li>
+  <li><b>Repair Chamber</b>, with the engine shut down and Basic Tools or a Repair Tool on you, clears the chamber's
+    damage, the same way a faulted system is repaired.</li>
+  <li><b>Cut coolant line</b>: sabotage can cut it. <b>Repair Coolant Line</b> with the same tools. See
+    {{ w.link("Antagonists") }}.</li>
+</ul>
+
+<h3>The NPC Engineer</h3>
+<p>
+  When the Engineer is a crew member the engine is already running when the shift starts. On a turn with no hazard,
+  fault, solar outage or dead life support to see to, they repair a cut coolant line, shut down an overheating engine,
+  or light a stopped one at the safe setting once it has gas on both lines, connecting a spare canister from the bay to
+  a line that has run low. Next they bring hallway lighting an antagonist dimmed back to where it was and report the
+  tampering to Security. With nothing else to do, they send a nearly empty canister that isn't connected back down
+  the tube to Atmospherics for refilling, once the rack there has a free slot. When you are the Engineer, nobody does
+  any of it for you.
+</p>
+<ul>
+  <li>A Head of Personnel shift has no NPC Engineer, so the engine and the solar array both start off.</li>
+  <li>The NPC Engineer never repairs a wrecked burn chamber.</li>
+</ul>
 
 <h2>System faults</h2>
 <ul>
-  <li>Equipment faults can knock out {{ facts.faultable|join(", ") }}. A faulted system shows FAULT on the panel and
+  <li>Equipment faults can knock out {{ facts.faultable|join(", ") }}. A System
+    Fault job event never picks one that is switched off. A faulted system shows FAULT on the panel and
     in Station Status, and stays at 0 until it's repaired. Power modes skip it, and its level won't go back up.</li>
   <li>To repair it, carry or hold Basic Tools or a Repair Tool and press <b>Repair</b> next to it on the panel. It
-    comes back at the current power mode's level.</li>
+    comes back at the level it had before the fault.</li>
   <li>Basic Tools start in your locker, and both can be made at the fabricator.</li>
 </ul>
 
-<h2>Solar outages</h2>
+<h2>Solar outages and hazards</h2>
 <p>
-  As an Engineer, a hallway job event can shut the solar array down. Switch it back on from the Engineering Panel.
-  See {{ w.link("Engineer") }}.
+  As an Engineer, your job can shut the solar array down or fault a system. Switch the array back on from the
+  Engineering Panel. Hazards are yours too: deal with each one in its room. See {{ w.link("Engineer") }} and
+  {{ w.link("Hazards") }}. When the Engineer is a crew member, they see to all of it themselves.
 </p>
 {% endblock %}

@@ -1,6 +1,6 @@
 {% import "game/_ui.html" as ui %}
 <h2>Select a tool to put back:</h2>
-<div class="listbox short">
+<div class="listbox short" data-scroll-key="put-back-tools">
   {% for tool in p.tools %}
     {{ ui.row(tool.label, "panel.select", {"index": tool.index}, tool.index == p.selected) }}
   {% endfor %}

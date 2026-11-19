@@ -1,19 +1,18 @@
 {% import "game/_ui.html" as ui %}
-<h2>Drink Menu</h2>
+{{ ui.panel_header(p.labels.menu_title, "Close Menu") }}
 <p class="center">Your credits: {{ p.credits }}</p>
 <div class="toggle-row center">
   {% for name in p.categories %}
     {{ ui.btn(name, "panel.category", {"name": name}, "btn-toggle" ~ (" active" if p.category == name else "")) }}
   {% endfor %}
 </div>
-<div class="listbox tall narrow" data-scroll-key="drinks">
+<div class="listbox tall narrow" data-scroll-key="menu">
   <div class="list-header">--- {{ p.category }} ---</div>
-  {% for drink in p.drinks %}
-    {{ ui.row(drink.label, "panel.select", {"name": drink.name}, drink.name == p.selected) }}
+  {% for row in p.rows %}
+    {{ ui.row(row.label, "panel.select", {"name": row.name}, row.name == p.selected) }}
   {% endfor %}
 </div>
 <p class="center">{{ p.description }}</p>
 <div class="button-row">
-  {{ ui.btn("Order Selected Drink", "panel.order") }}
-  {{ ui.close_btn("Close Menu") }}
+  {{ ui.btn("Order Selected " ~ p.labels.noun|title, "panel.order") }}
 </div>

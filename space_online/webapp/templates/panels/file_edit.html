@@ -1,0 +1,11 @@
+{% import "game/_ui.html" as ui %}
+<h2>Editing {{ p.name }}</h2>
+<form class="form-stack" data-action="panel.save">
+  <label for="file-text" class="small muted">Up to {{ p.max }} characters.</label>
+  <textarea id="file-text" name="text" class="file-editor" rows="18" spellcheck="false">{{ p.text }}</textarea>
+  {{ ui.feedback(p.feedback) }}
+  <div class="button-row">
+    <button type="submit" class="btn">Save</button>
+    {{ ui.close_btn("Cancel") }}
+  </div>
+</form>

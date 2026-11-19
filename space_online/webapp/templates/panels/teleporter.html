@@ -1,0 +1,40 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Teleporter") }}
+<p class="center">The console's numbers are not station coordinates. Send the test beacon to find out where they come out.</p>
+<form class="form-stack narrow-form" data-action="panel.scan">
+  <div class="inline">
+    <label for="tele-x">X</label>
+    <input id="tele-x" name="x" type="text" inputmode="numeric" value="{{ p.x }}" autofocus>
+    <label for="tele-y">Y</label>
+    <input id="tele-y" name="y" type="text" inputmode="numeric" value="{{ p.y }}">
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Scan", "panel.scan") }}
+    {{ ui.btn("Send Beacon", "panel.beacon") }}
+    {{ ui.btn("Send Me", "panel.send_me", cls="btn-primary") }}
+    {{ ui.btn("Receive", "panel.receive") }}
+  </div>
+  <label>On the pad
+    <select name="item">
+      {% for item in p.pad_items %}<option value="{{ item.index }}">{{ item.label }}</option>{% endfor %}
+    </select>
+  </label>
+  <div class="button-row">
+    {{ ui.btn("Send Item", "panel.send_item", disabled=not p.pad_items) }}
+  </div>
+</form>
+<fieldset class="group">
+  <legend>Console Log</legend>
+  {% for line in p.log %}
+    <p>{{ line }}</p>
+  {% else %}
+    <p>Nothing sent yet.</p>
+  {% endfor %}
+</fieldset>
+<fieldset class="group">
+  <legend>Station Coordinates</legend>
+  <div class="detail-grid">
+    {% for room in p.rooms %}<span>{{ room.name }}: {{ room.x }} North, {{ room.y }} East</span>{% endfor %}
+  </div>
+  <p class="muted">Every hallway screen shows its own coordinates.</p>
+</fieldset>

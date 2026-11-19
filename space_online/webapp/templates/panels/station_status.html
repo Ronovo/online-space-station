@@ -1,12 +1,9 @@
 {% import "game/_ui.html" as ui %}
-<div class="panel-header">
-  <h2>STATION STATUS</h2>
-  {{ ui.close_btn(cls="btn-small") }}
-</div>
+{{ ui.panel_header("STATION STATUS") }}
 <p class="status-summary" style="color: {{ p.overall_color }}">T+{{ p.elapsed_display }} · Cycle {{ p.cycle_number }} · Overall: {{ p.overall }}</p>
 
 <section class="eng-section">
-  <h3 style="color: #00CCFF">ALERTS</h3>
+  <h3>ALERTS</h3>
   {% for alert in p.alerts %}
     <p style="color: {{ '#FF0000' if alert.severity == 'critical' else '#FFFF00' }}"><b>! {{ alert.text }}</b></p>
   {% else %}
@@ -16,33 +13,21 @@
 
 {% set power = p.power %}
 <section class="eng-section">
-  <h3 style="color: #00CCFF">POWER &amp; SYSTEMS</h3>
-  <div class="bar-line">
-    <b class="bar-label">Battery</b>
-    <div class="bar small"><div class="bar-fill" style="width: {{ power.battery_level }}%; background: {{ power.battery_color }}"></div></div>
-    <b style="color: {{ power.battery_color }}">{{ "%.0f"|format(power.battery_level) }}%</b>
-  </div>
-  <p>Band: {{ power.battery_band }} &nbsp; Mode: {{ power.power_mode }} &nbsp; Solar:
-    <b style="color: {{ '#00FF00' if power.solar_charging else '#FF6666' }}">{{ "ACTIVE" if power.solar_charging else "INACTIVE" }}</b></p>
-  {% for system in power.systems %}
-  <div class="system-row">
-    <b>{{ system.name }}</b>
-    <span><b style="color: {{ system.status_color }}">{{ system.status }}</b> &nbsp; Lv {{ system.level }}</span>
-  </div>
-  {% endfor %}
+  <h3>POWER &amp; SYSTEMS</h3>
+  {% include "panels/_power.html" %}
 </section>
 
 {% set crew = p.crew %}
 <section class="eng-section">
-  <h3 style="color: #00CCFF">CREW</h3>
+  <h3>CREW</h3>
   <p>Complement: {{ crew.complement }} &nbsp; On duty: {{ crew.on_duty }} &nbsp; Away: {{ crew.away }}</p>
-  <p>Health: {{ crew.healthy }} Healthy · {{ crew.injured }} Injured · {{ crew.critical }} Critical</p>
+  <p>Health: {{ crew.healthy }} Healthy · {{ crew.minor }} Minor injuries · {{ crew.injured }} Injured · {{ crew.critical }} Critical</p>
   <p style="color: {{ '#FF0000' if crew.oxygen_stress else 'white' }}">Oxygen stress: {{ crew.oxygen_stress }} crew</p>
 </section>
 
 {% set sec = p.security %}
 <section class="eng-section">
-  <h3 style="color: #00CCFF">SECURITY</h3>
+  <h3>SECURITY</h3>
   <p>Security systems: <b style="color: {{ '#00FF00' if sec.security_systems_online else '#FF0000' }}">{{ "Online" if sec.security_systems_online else "Offline" }}</b></p>
   <p>Wanted: {{ sec.wanted_count }} &nbsp; Jailed: {{ sec.jailed_count }} &nbsp; Open fines: {{ sec.fines_count }}</p>
   {% for detail in sec.details %}
@@ -60,7 +45,9 @@
 
 {% set fac = p.facilities %}
 <section class="eng-section">
-  <h3 style="color: #00CCFF">FACILITIES</h3>
+  <h3>FACILITIES</h3>
+  <p>Station stores: {{ fac.stores.ore }} ore, {{ fac.stores.remedies }} remedies,
+    {% for name, count in fac.stores.produce.items() %}{{ count }} {{ name }}{{ ", " if not loop.last }}{% endfor %}</p>
   {% if fac.locked_rooms %}
     <p style="color: #FFFF00">Locked rooms: {{ fac.locked_rooms|join(", ") }}</p>
   {% else %}
@@ -68,5 +55,3 @@
   {% endif %}
   <p>Botany: {{ fac.botany_occupied }}/{{ fac.botany_total }} planters occupied ({{ fac.botany_mature }} mature, {{ fac.botany_thirsty }} need water, {{ fac.botany_dead }} dead)</p>
 </section>
-
-<div class="button-row">{{ ui.close_btn() }}</div>

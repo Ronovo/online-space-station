@@ -1,8 +1,8 @@
 {% import "game/_ui.html" as ui %}
-<h2>Access Control</h2>
+{{ ui.panel_header("Access Control", "Exit") }}
 <fieldset class="group">
   <legend>Requestable Jobs</legend>
-  <div class="listbox">
+  <div class="listbox" data-scroll-key="access-jobs">
     {% for job in p.jobs %}
       {{ ui.row(job, "panel.select", {"job": job}, job == p.selected) }}
     {% endfor %}
@@ -14,6 +14,5 @@
 </fieldset>
 {{ ui.feedback(p.feedback) }}
 <div class="button-row">
-  {{ ui.close_btn("Exit") }}
   {{ ui.btn("Submit Request", "panel.submit") }}
 </div>

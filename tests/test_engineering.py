@@ -1,41 +1,26 @@
 import pytest
 
-from helpers import new_game, reports
+from helpers import buttons, crew, give, in_room, labels, last_message, notes, open_station, panel, reports
+from space_online.game.helper_methods.game_clock import format_elapsed
 from space_online.game.helper_methods.oxygen_helper import (
     LIFE_SUPPORT_DAMAGE_BEGIN_TITLE,
     OXYGEN_DEPLETION_FOLLOWUP_TITLE,
-    OXYGEN_DEPLETION_GRACE_SECONDS,
 )
+from space_online.game.helper_methods.station_air import AIR_LASTS_SECONDS
 from space_online.game.helper_methods.lighting_helper import clamp_lighting_for_battery
 from space_online.game.helper_methods.power_constants import BALANCED_SYSTEM_LEVELS, fault_system
-from space_online.game.maps.donut import ENGINEERING_KEY, location_from_key
-from space_online.game.objects.items import add_to_inventory, get_item_definition
-from space_online.game.special_rooms.engineering import POWER_MODE_LEVELS
+from space_online.game.helper_methods.stores import STARTING_ORE
+from space_online.game.maps.donut import ENGINEERING_KEY
+from space_online.game.objects.items import get_item_definition
+from space_online.game.special_rooms.engineering import POWER_MODE_LEVELS, repair_system
 
 
 def in_engineering(department="Civilian", job="Staff Assistant"):
-    game = new_game(department, job)
-    game.player_data["location"] = location_from_key(ENGINEERING_KEY)
-    return game
-
-
-def buttons(game):
-    return [(w.get("label") or w.get("text"), w.get("action")) for w in game.view()["screen"]["buttons"]]
-
-
-def panel(game):
-    return game.view()["panel"]
-
-
-def last_message(game):
-    return game._messages[-1][1:3]
+    return in_room(ENGINEERING_KEY, department, job)
 
 
 def engineering_panel(game):
-    game.ui["panels"] = []
-    game.ui["room_mode"] = "engineering_station"
-    game.perform("room.access_engineering_panel", {})
-    return game
+    return open_station(game, "engineering_station", "access_engineering_panel")
 
 
 def levels(game):
@@ -52,9 +37,10 @@ def test_visitors_can_fabricate_and_talk_to_the_engineer():
 
 def test_the_engineer_works_the_station():
     game = in_engineering("Engineering", "Engineer")
-    assert [label for label, _ in buttons(game)] == ["Enter Engineering Station", "Lock/Unlock Door", "Room Options"]
+    assert labels(game) == ["Enter Engineering Station", "Lock/Unlock Door", "Room Options"]
     game.perform("room.open_station", {"mode": "engineering_station"})
     assert buttons(game) == [("Engineering Station Controls", None), ("Engineering Panel", "room.access_engineering_panel"),
+                             ("Combustion Engine", "room.access_combustion_engine"),
                              ("Back to Station Menu", "room.set_mode")]
     game.perform("room.access_engineering_panel", {})
     assert panel(game)["type"] == "engineering_panel"
@@ -78,13 +64,33 @@ def test_fabricating_an_item():
     game = in_engineering()
     ctx = fabricator(game)
     assert (ctx["categories"], ctx["category"], ctx["item_names"]) == (
-        ["Tool", "Book"], "Tool", ["Wrench", "Screwdriver", "Wirecutters", "Repair Tool", "Basic Tools"])
-    game.perform("panel.select", {"index": 4})
+        ["Tool", "Book", "Weapon"], "Tool", ["Wrench (1 ore)", "Screwdriver (1 ore)", "Wirecutters (1 ore)",
+                                             "Repair Tool (2 ore)", "Fire Extinguisher (1 ore)",
+                                             "Basic Tools (3 ore)", "Gas Analyzer (2 ore)",
+                                                 "Tank Transfer Valve (3 ore)"])
+    assert ctx["ore"] == STARTING_ORE
+    game.perform("panel.select", {"index": 5})
     game.perform("panel.create", {})
+    assert game.player_data["stores"]["ore"] == STARTING_ORE - 3
     assert game.player_data["inventory"][0]["id"] == "basic_tools"
     assert len(game.player_data["inventory"][0]["attributes"]["contents"]) == 3
     assert panel(game)["ctx"]["feedback"]["text"] == "'Basic Tools' created successfully."
-    assert game.player_data["notes"][-1]["text"] == "Fabricated a Basic Tools (basic_tools) in Engineering."
+    assert notes(game)[-1] == "Fabricated a Basic Tools (basic_tools) in Engineering."
+
+
+def test_the_fabricator_needs_ore_from_the_station_stores_and_books_are_free():
+    game = in_engineering()
+    game.player_data["stores"]["ore"] = 2
+    fabricator(game)
+    game.perform("panel.select", {"index": 5})
+    game.perform("panel.create", {})
+    assert panel(game)["ctx"]["feedback"]["text"] == "Not enough ore in the station stores: a Basic Tools takes 3."
+    assert (game.player_data["inventory"], game.player_data["stores"]["ore"]) == ([], 2)
+    game.perform("panel.category", {"name": "Book"})
+    assert panel(game)["ctx"]["item_names"] == ["Welcome Guide", "Station Map"]
+    game.perform("panel.select", {"index": 0})
+    game.perform("panel.create", {})
+    assert (game.player_data["inventory"][0]["id"], game.player_data["stores"]["ore"]) == ("welcome_guide", 2)
 
 
 def test_examining_a_fabricator_item_keeps_the_text_up():
@@ -152,11 +158,30 @@ def test_setting_a_system_level_stays_within_0_and_10():
     assert "warp_drive" not in levels(game)
 
 
-@pytest.mark.parametrize("mode", ["balanced", "high", "low", "emergency"])
-def test_power_modes_set_every_system(mode):
+def test_a_power_mode_sets_every_system():
     game = engineering_panel(in_engineering("Engineering", "Engineer"))
-    game.perform("panel.set_power_mode", {"mode": mode})
-    assert (game.player_data["station_power"]["power_mode"], levels(game)) == (mode, POWER_MODE_LEVELS[mode])
+    game.perform("panel.set_power_mode", {"mode": "emergency"})
+    assert (game.player_data["station_power"]["power_mode"], levels(game)) == (
+        "emergency", {"life_support": 10, "hallway_lighting": 1, "security_systems": 3, "communication_array": 1})
+
+
+@pytest.mark.parametrize("action, args", [("panel.set_level", {"system": "hallway_lighting", "value": "2"}),
+                                          ("panel.set_power_mode", {"mode": "emergency"})])
+def test_lighting_set_from_the_panel_is_no_longer_a_dim_to_undo(action, args):
+    game = engineering_panel(in_engineering("Engineering", "Engineer"))
+    power = game.player_data["station_power"]
+    power["dimmed_from"] = 6
+    game.perform("panel.set_level", {"system": "security_systems", "value": "4"})
+    assert power["dimmed_from"] == 6
+    game.perform(action, args)
+    assert power["dimmed_from"] is None
+
+
+def test_repairing_faulted_lighting_keeps_the_dim_to_undo():
+    game = faulted(in_engineering(), "hallway_lighting")
+    game.player_data["station_power"]["dimmed_from"] = 6
+    repair_system(game, "hallway_lighting")
+    assert game.player_data["station_power"]["dimmed_from"] == 6
 
 
 def test_an_unknown_power_mode_changes_nothing():
@@ -177,16 +202,14 @@ def test_the_panel_controls_check_clearance_even_with_the_panel_open():
         solar, "balanced", BALANCED_SYSTEM_LEVELS)
 
 
-def test_switching_life_support_off_announces_a_grace_period():
+def test_switching_life_support_off_announces_how_long_the_air_will_last():
     game = engineering_panel(in_engineering("Engineering", "Engineer"))
-    game.player_data["game_clock"]["elapsed_seconds"] = 100
     game.perform("panel.set_level", {"system": "life_support", "value": "0"})
     assert panel(game)["type"] == "oxygen_announcement"
-    assert game.player_data["damage_timers"]["oxygen_depletion"] == {
-        "active": True, "damage_starts_at_seconds": 100 + OXYGEN_DEPLETION_GRACE_SECONDS}
     assert len(game.player_data["announcements"]) == 1
     game.perform("panel.acknowledge", {})
     assert reports(game) == [OXYGEN_DEPLETION_FOLLOWUP_TITLE]
+    assert f"The air will last about {format_elapsed(AIR_LASTS_SECONDS)}" in last_message(game)[1]
     assert panel(game)["type"] == "engineering_panel"
 
 
@@ -208,11 +231,13 @@ def test_turning_life_support_back_on_ends_the_announcement():
     game.perform("panel.set_level", {"system": "life_support", "value": "8"})
     assert "announcements" not in game.player_data
     assert game.ui["announcement_active"] is False
-    assert reports(game) == []
+    assert last_message(game) == ("Engineering Panel", "Life Support back on at level 8.")
 
 
-def test_lowering_life_support_into_the_damage_range_warns():
+def test_lowering_life_support_to_where_the_pumps_cant_keep_up_warns_once():
     game = engineering_panel(in_engineering("Engineering", "Engineer"))
+    game.perform("panel.set_level", {"system": "life_support", "value": "5"})
+    assert reports(game) == []
     game.perform("panel.set_level", {"system": "life_support", "value": "4"})
     game.perform("panel.set_level", {"system": "life_support", "value": "3"})
     assert reports(game) == [LIFE_SUPPORT_DAMAGE_BEGIN_TITLE]
@@ -237,31 +262,32 @@ def test_a_faulted_system_shows_on_the_panel_and_stays_off():
 
 def test_repairing_needs_tools_and_a_wrench_alone_is_not_enough():
     game = engineering_panel(faulted(in_engineering("Engineering", "Engineer")))
-    add_to_inventory(game.player_data, get_item_definition("wrench"))
+    give(game, "wrench")
     game.perform("panel.repair", {"system": "security_systems"})
     assert last_message(game) == ("Repair", "You need Basic Tools or a Repair Tool to repair the Security Systems.")
     assert game.player_data["station_power"]["faults"] == ["security_systems"]
 
 
 @pytest.mark.parametrize("where", ["inventory", "hand"])
-def test_repairing_with_tools_brings_the_system_back_at_the_modes_level(where):
-    game = engineering_panel(faulted(in_engineering("Engineering", "Engineer")))
+def test_repairing_with_tools_brings_the_system_back_at_the_level_it_had(where):
+    game = engineering_panel(in_engineering("Engineering", "Engineer"))
+    game.perform("panel.set_level", {"system": "security_systems", "value": "4"})
+    faulted(game)
     if where == "inventory":
-        add_to_inventory(game.player_data, get_item_definition("basic_tools"))
+        give(game, "basic_tools")
     else:
         game.player_data["hands"]["right"] = get_item_definition("repair_tool")
     game.perform("panel.set_power_mode", {"mode": "low"})
     game.perform("panel.repair", {"system": "security_systems"})
     name = "Basic Tools" if where == "inventory" else "Repair Tool"
     power = game.player_data["station_power"]
-    assert (power["faults"], levels(game)["security_systems"]) == ([], POWER_MODE_LEVELS["low"]["security_systems"])
+    assert (power["faults"], power["fault_levels"], levels(game)["security_systems"]) == ([], {}, 4)
     assert last_message(game) == ("Repair", f"You repair the Security Systems with the {name}. It is back online.")
-    assert game.player_data["notes"][-1]["text"] == f"Repaired the Security Systems with the {name}."
+    assert notes(game)[-1] == f"Repaired the Security Systems with the {name}."
 
 
 def test_only_faulted_systems_are_repaired_and_only_with_clearance():
-    game = faulted(in_engineering())
-    add_to_inventory(game.player_data, get_item_definition("repair_tool"))
+    game = give(faulted(in_engineering()), "repair_tool")
     game.open_panel("engineering_panel")
     game.perform("panel.repair", {"system": "security_systems"})
     game.perform("panel.repair", {"system": "life_support"})
@@ -271,6 +297,49 @@ def test_only_faulted_systems_are_repaired_and_only_with_clearance():
 def test_faulted_lighting_ignores_the_battery_lighting_bands():
     game = faulted(in_engineering(), "hallway_lighting")
     power = game.player_data["station_power"]
+    band = power["last_lighting_battery_band"]
     power["battery_level"] = 80
     clamp_lighting_for_battery(power)
-    assert (power["system_levels"]["hallway_lighting"], power["last_lighting_battery_band"]) == (0, "normal")
+    assert (power["system_levels"]["hallway_lighting"], power["last_lighting_battery_band"]) == (0, band)
+
+
+def test_a_battery_band_crossed_while_lighting_is_faulted_is_applied_after_the_repair():
+    game = in_engineering()
+    power = game.player_data["station_power"]
+    power.update(battery_level=50, last_lighting_battery_band="normal")
+    power["system_levels"]["hallway_lighting"] = 7
+    faulted(game, "hallway_lighting")
+    power["battery_level"] = 4.5
+    clamp_lighting_for_battery(power)
+    repair_system(game, "hallway_lighting")
+    assert power["system_levels"]["hallway_lighting"] == 7
+    clamp_lighting_for_battery(power)
+    assert (power["system_levels"]["hallway_lighting"], power["last_lighting_battery_band"]) == (2, "emergency")
+
+
+def test_the_engineer_only_talks_when_they_are_in():
+    game = in_engineering()
+    crew(game, "Engineer")["on_duty"] = False
+    game.perform("room.talk_to_engineer", {})
+    assert game._messages == []
+
+
+def test_switching_a_system_off_or_back_on_is_logged_and_other_moves_are_not():
+    game = engineering_panel(in_engineering("Engineering", "Engineer"))
+    game.perform("panel.set_level", {"system": "security_systems", "value": "4"})
+    assert reports(game) == []
+    game.perform("panel.set_level", {"system": "security_systems", "value": "0"})
+    assert last_message(game) == ("Engineering Panel", "Security Systems switched off.")
+    game.perform("panel.set_level", {"system": "security_systems", "value": "6"})
+    assert last_message(game) == ("Engineering Panel", "Security Systems back on at level 6.")
+    assert reports(game) == ["Engineering Panel", "Engineering Panel"]
+
+
+def test_switching_categories_clears_what_the_fabricator_last_said():
+    game = in_engineering()
+    fabricator(game)
+    game.perform("panel.select", {"index": 0})
+    game.perform("panel.examine", {})
+    assert panel(game)["ctx"]["feedback"] is not None
+    game.perform("panel.category", {"name": "Book"})
+    assert panel(game)["ctx"]["feedback"] is None

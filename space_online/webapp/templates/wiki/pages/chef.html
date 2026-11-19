@@ -1,0 +1,28 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You run the Kitchen. At the Chef Station you cook dishes into the kitchen's stock, read the recipe book, and plate
+  from the food menu, which is free for you. You also pass ingredients to and from the Bar through the service
+  window, and you can lock and unlock the Kitchen door. See {{ w.link("Kitchen") }}.
+</p>
+
+<h2>Job events</h2>
+<ul>
+  <li><b>Food Order</b>: a crew member orders a dish. Cook it, then press <b>Serve</b> at the Chef Station to hand it
+    over for the dish's menu price. See {{ w.link("Duties and Job Events") }}.</li>
+  <li><b>Window Request</b>: the Bartender asks for an ingredient at the service window. Put it on the window when
+    you can. It's a favour, so it pays nothing and never runs out.</li>
+</ul>
+
+<h2>Tips</h2>
+<ul>
+  <li>Keep a few dishes in stock so you can serve orders straight away.</li>
+  <li>Dishes that need beer, wine or rum need the Bartender to pass it through the window, from wherever they are.
+    While they're jailed or badly hurt, what you ask for waits, and it comes through once they can work. See
+    {{ w.link("Kitchen") }}.</li>
+  <li>Tomato, potato, carrot and apple come from Botany. Watch how many are left before you promise a dish.</li>
+  <li>Your PDA reads whether an item can be eaten and what eating it does. See {{ w.link("PDA") }}.</li>
+</ul>
+{% endblock %}

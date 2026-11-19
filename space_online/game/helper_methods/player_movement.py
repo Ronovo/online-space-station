@@ -1,13 +1,15 @@
 """Player hallway movement: directional travel and alcohol impairment checks."""
 
 import random
-from space_online.game.helper_methods.health_bands import LIMBS, change_limb, limb_label
 
-from space_online.game.maps import donut
-from space_online.game.helper_methods.alcohol_helper import stumble_chance, fall_chance
+from space_online.game.helper_methods.alcohol_helper import fall_chance, stumble_chance
+from space_online.game.helper_methods.antagonists import check_threat_encounter
+from space_online.game.helper_methods.health_bands import LIMBS, change_limb, limb_label
 from space_online.game.helper_methods.jail import is_jailed, player_jail_text
 from space_online.game.helper_methods.npc_movement import find_hall_passersby
 from space_online.game.helper_methods.random_events import maybe_trigger_hallway_event
+from space_online.game.maps import donut
+
 
 class PlayerMovementMixin:
     def _try_alcohol_movement_impairment(self):
@@ -56,12 +58,15 @@ class PlayerMovementMixin:
 
         self.player_data["location"] = donut.location_from_tile(step)
 
+        check_threat_encounter(self)
+        if self.player_data["fight"]:
+            return
+
         maybe_trigger_hallway_event(self)
 
         if is_jailed(self.player_data):
             return
 
-        # Hallway passers-by are checked on every move.
         for npc in find_hall_passersby(self.player_data, self.station_crew):
             if self._handle_hallway_security_encounter(npc):
                 if is_jailed(self.player_data):

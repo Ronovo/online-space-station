@@ -122,35 +122,22 @@ def link_portfolio(user_id, sub):
         return False
 
 
-def character_summary(user_id):
-    """Name/job/credits of the account's character, or None if it has none."""
-    row = get_db().execute(
-        "SELECT player_data, created_at, updated_at FROM characters WHERE user_id = ?", (user_id,)
-    ).fetchone()
+def load_save(user_id):
+    """The account's save and when it was last written, or (None, None) before it has one."""
+    row = get_db().execute("SELECT player_data, updated_at FROM characters WHERE user_id = ?", (user_id,)).fetchone()
     if row is None:
-        return None
-    player_data = json.loads(row["player_data"])
-    return {
-        "name": player_data.get("name"),
-        "job": player_data.get("job"),
-        "credits": player_data.get("credits", 0),
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
-    }
+        return None, None
+    return json.loads(row["player_data"]), row["updated_at"]
 
 
-def insert_character(user_id, player_data, ui_state):
-    """Store a new character. Returns False if the account already has one."""
+def ensure_save(user_id, save, ui_state):
+    """Give the account its save if it doesn't have one yet."""
     now = _now()
-    try:
-        get_db().execute(
-            "INSERT INTO characters (user_id, player_data, ui_state, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (user_id, json.dumps(player_data), json.dumps(ui_state), now, now),
-        )
-    except sqlite3.IntegrityError:
-        return False
-    return True
+    get_db().execute(
+        "INSERT OR IGNORE INTO characters (user_id, player_data, ui_state, created_at, updated_at) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (user_id, json.dumps(save), json.dumps(ui_state), now, now),
+    )
 
 
 def delete_character(user_id):
@@ -158,12 +145,11 @@ def delete_character(user_id):
 
 
 def update_character(user_id, fn):
-    """Load, mutate, and save a character atomically.
+    """Load, mutate, and store an account's save atomically.
 
-    fn(player_data, ui_state) -> (result, player_data, ui_state). Returns
-    result, or None if the account has no character. BEGIN IMMEDIATE
-    serializes concurrent requests (e.g. a poll racing a click) so neither
-    overwrites the other's changes.
+    fn(save, ui_state) -> (result, save, ui_state). Returns result, or None if
+    the account has no save. BEGIN IMMEDIATE serializes concurrent requests
+    (e.g. a poll racing a click) so neither overwrites the other's changes.
     """
     db = get_db()
     db.execute("BEGIN IMMEDIATE")
@@ -174,10 +160,10 @@ def update_character(user_id, fn):
         if row is None:
             db.execute("ROLLBACK")
             return None
-        result, player_data, ui_state = fn(json.loads(row["player_data"]), json.loads(row["ui_state"]))
+        result, save, ui_state = fn(json.loads(row["player_data"]), json.loads(row["ui_state"]))
         db.execute(
             "UPDATE characters SET player_data = ?, ui_state = ?, updated_at = ? WHERE user_id = ?",
-            (json.dumps(player_data), json.dumps(ui_state), _now(), user_id),
+            (json.dumps(save), json.dumps(ui_state), _now(), user_id),
         )
         db.execute("COMMIT")
         return result

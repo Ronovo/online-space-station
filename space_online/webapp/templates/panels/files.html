@@ -1,0 +1,32 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Files") }}
+{% if p.read_only %}<p class="center small muted">Your PDA only reads files. Write and edit them at the computer in your quarters.</p>{% endif %}
+<fieldset class="group">
+  <legend>guide/</legend>
+  <div class="listbox" data-scroll-key="files-guide">
+    {% for file in p.guide %}
+      {{ ui.row(file.name, "panel.open", {"path": file.path}) }}
+    {% endfor %}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>home/</legend>
+  <div class="listbox short" data-scroll-key="files-home">
+    {% for file in p.home %}
+      <div class="file-row">
+        {{ ui.row(file.name, "panel.open", {"path": file.path}) }}
+        {% if not p.read_only %}{{ ui.btn("Delete", "panel.delete", {"path": file.path}, "btn-small") }}{% endif %}
+      </div>
+    {% else %}
+      <div class="list-empty">You haven't written any files yet.</div>
+    {% endfor %}
+  </div>
+</fieldset>
+{% if not p.read_only %}
+<form class="search-row" data-action="panel.new">
+  <label for="file-name">New file:</label>
+  <input id="file-name" name="name" type="text" maxlength="40">
+  <button type="submit" class="btn btn-small">Create</button>
+</form>
+{{ ui.feedback(p.feedback) }}
+{% endif %}

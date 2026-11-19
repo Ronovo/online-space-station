@@ -1,0 +1,130 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set d = facts.pda %}
+{% block page %}
+<p>
+  Everyone starts a shift with a PDA in their inventory. It is an item like any other: you can drop it, leave it in
+  your locker, or lose it. It only works while it is in one of your hands. See {{ w.link("Items and Hands") }}.
+</p>
+
+<h2>Opening it</h2>
+<p>
+  Equip the PDA to a hand and a <b>PDA</b> button appears with Character Sheet, Duties and Hands. The button shows how
+  many messages you haven't read. Take the PDA out of your hand and the button goes away.
+</p>
+<table class="wiki-table">
+  <thead><tr><th>On the menu</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td>Messages</td><td>What your job needs from you. It keeps the last {{ d.MAX_MESSAGES }}.</td></tr>
+    <tr><td>Order Console</td><td>Request a supply or a canister of gas from Central Command, from anywhere. The
+      Quartermaster answers on your PDA, and you collect it at the Cargo Bay. Every job but the Quartermaster has it.
+      A canister of gas goes to Atmospherics instead. See {{ w.link("Cargo") }}.</td></tr>
+    <tr><td>Stocks</td><td>The {{ w.link("Stock Market") }}, to look at. Buying and selling still take the computer in
+      your quarters.</td></tr>
+    <tr><td>Files</td><td>The files on your computer, to read.</td></tr>
+    <tr><td>Your job's app</td><td>Some jobs have one more entry. See below.</td></tr>
+  </tbody>
+</table>
+
+<h2>Messages</h2>
+<ul>
+  <li>Messages are for what needs your attention. Duties aren't sent here: they are on the Duties panel and in the
+    station log. See {{ w.link("Duties and Job Events") }}.</li>
+  <li>An event that hurts you, or leaves something on the floor where you are, is sent here as well as to the
+    station log.</li>
+  <li>Replies come here, such as the Head of Personnel answering your job request or the Quartermaster answering an
+    order.</li>
+  <li>Some jobs are also told when something they look after needs them. You get one message when the need starts,
+    and another if it comes back after you dealt with it.</li>
+</ul>
+<table class="wiki-table">
+  <thead><tr><th>Job</th><th>You are told when</th></tr></thead>
+  <tbody>
+    <tr><td>Miner</td><td>The ore store is down to {{ d.LOW_ORE }} or less</td></tr>
+    <tr><td>Botanist</td><td>The kitchen runs out of a kind of produce</td></tr>
+    <tr><td>Scientist</td><td>Posted to Chemistry: MedBay is down to {{ d.LOW_REMEDIES }} remedy or none. Posted to
+      Atmospherics: the air is low on Oxygen or contaminated, or the reservoir is nearly empty</td></tr>
+    <tr><td>Doctor</td><td>A crew member is in critical condition</td></tr>
+    <tr><td>Engineer</td><td>The battery falls to {{ facts.power.BATTERY_CRITICAL }}%, a system faults, the solar
+      panels go offline, a hazard starts, the combustion chamber takes damage, or the air or the reservoir runs
+      low</td></tr>
+    <tr><td>Quartermaster</td><td>A supply pod docks</td></tr>
+    <tr><td>Security Guard</td><td>Someone is wanted, or an antagonist shows itself</td></tr>
+    <tr><td>Head of Personnel</td><td>A crew member asks to change jobs at Access Control</td></tr>
+    <tr><td>Bartender and Chef</td><td>The other side asks for an ingredient at the service window</td></tr>
+  </tbody>
+</table>
+<p>Messages reach the PDA whether you are holding it or not. You read them the next time you open it.</p>
+
+<h2>Scanning</h2>
+<p>
+  To scan something related to your job, use the PDA on the object. What it reads depends on your job, and the reading goes to the
+  station log. In a job with no scanner for the thing, it says so.
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Job</th><th>Use the PDA on</th><th>It reads</th></tr></thead>
+  <tbody>
+    <tr><td>Botanist</td><td>A planter, with the PDA's button under it at the Botany Station</td>
+      <td>The plant, its stage, the time to the next one, what has been applied, the yield and the chance of a
+        mutant harvest</td></tr>
+    <tr><td>Chef</td><td>An item in your inventory</td><td>Whether it can be eaten, how much hunger it feeds and,
+      for mutant produce, what it mends</td></tr>
+    <tr><td>Bartender</td><td>An item in your inventory</td><td>What a mixed drink is mixed from. A plain drink reads
+      as itself</td></tr>
+    <tr><td>Scientist</td><td>An item in your inventory</td><td>What it goes into the beaker as, what the processor
+      makes of it, what a compound is made of and what it treats, or a Gas Tank's gauge</td></tr>
+    <tr><td>Quartermaster</td><td>An item in your inventory</td><td>Its order price, its counter price and what the
+      export counter pays</td></tr>
+    <tr><td>Miner</td><td>A vein you don't recognise, on a planet</td><td>The ore, what it exports for and where it is
+      found. See {{ w.link("Mining") }}</td></tr>
+  </tbody>
+</table>
+<p>
+  To scan an item, open your inventory, select the item and press <b>Scan with PDA</b>. The button is only there
+  while the PDA is in a hand.
+</p>
+
+<h2>Job apps</h2>
+<table class="wiki-table">
+  <thead><tr><th>Job</th><th>App</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td>Engineer</td><td>Power Readout</td><td>The battery, the power mode, the solar array, the Combustion
+      Engine's output, every system's level and faults, the station's air and reservoir, and the hazards on the
+      station</td></tr>
+    <tr><td>Doctor</td><td>Crew Vitals</td><td>The Crew Vitals Monitor, to look at. Treating someone still takes
+      MedBay</td></tr>
+    <tr><td>Security Guard</td><td>Scan Crew</td><td>Lists the crew where you are standing. Scanning one reads their
+      warrant and fine, and how many of the shift's incidents they were away from their post for. See
+      {{ w.link("Antagonists") }}</td></tr>
+    <tr><td>Head of Personnel</td><td>Access Control</td><td>Approve or deny an access request from anywhere</td></tr>
+    <tr><td>Captain</td><td>Broadcast</td><td>Speak to the station: pick a ready-made message or type one of up to
+      {{ d.MAX_BROADCAST_CHARS }} characters. It goes in the station log, and nothing goes out while the
+      Communication Array is down. The crew hear it, but they don't act on it</td></tr>
+    <tr><td>Miner</td><td>Ore Log</td><td>The {{ facts.surface_ores }} ores found in veins, each named once you have
+      scanned it this shift</td></tr>
+  </tbody>
+</table>
+<p>The app follows the job you hold now, so it changes if you are given a new job.</p>
+
+<h2>Files</h2>
+<p>Your computer has two folders.</p>
+<ul>
+  <li><b>guide/</b> holds pages from this guide as text: the page for your job, the pages its work leans on, and the
+    basics. They follow the job you hold.</li>
+  <li><b>home/</b> holds files you write yourself: up to {{ d.MAX_OWN_FILES }} of them, each up to
+    {{ d.MAX_FILE_CHARS }} characters. A new career or round starts with <b>home.md</b>, a sample that shows how to
+    format a file.</li>
+  <li>A file whose name ends in <b>.md</b> is shown formatted: headings, lists, bold, italic and tables. Other files
+    are shown as plain text.</li>
+  <li>A link to another page of this guide opens that page's file, when it is in your guide folder. <b>Back</b>
+    returns to the page the link was on, and <b>Close</b> returns to the Files list.</li>
+</ul>
+<ul>
+  <li>The <b>computer in your quarters</b> reads every file, and makes, edits and deletes your own: <b>Edit</b> is at the
+    top of an open file, and <b>Delete</b> is under it and beside each file in the Files list. Guide files can only be
+    read.</li>
+  <li>The <b>PDA</b> can only read them.</li>
+  <li>In a career your files come with you from shift to shift. In a single round they last for the round. See
+    {{ w.link("Modes and Careers") }}.</li>
+</ul>
+{% endblock %}

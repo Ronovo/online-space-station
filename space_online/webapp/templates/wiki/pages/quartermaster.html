@@ -1,0 +1,41 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set e = facts.events %}
+{% block page %}
+<h2>What you do</h2>
+<p>
+  You keep the station supplied. At the Cargo Station you order supplies up from Central Command, collect them when
+  their pod docks, and sell the station's ore, produce and artifacts at the export counter. You can also lock and
+  unlock the Cargo Bay door. See {{ w.link("Cargo") }}.
+</p>
+
+<h2>Job events</h2>
+<p>
+  <b>Supply Request</b>: a department asks for a supply, such as the Doctor wanting a medkit. Order it, collect it,
+  and press <b>Deliver</b> in their room while they're on duty, for
+  {{ e.ITEM_REQUEST_MIN_REWARD }}-{{ e.ITEM_REQUEST_MAX_REWARD }} credits. See {{ w.link("Duties and Job Events") }}.
+</p>
+<p>
+  The requests also wait under <b>Supply Requests</b> on the Order Console at the Cargo Station:
+</p>
+<ul>
+  <li><b>Approve</b> orders the supply at your price. The request stays on your Duties board until you collect the
+    supply and deliver it for the reward.</li>
+  <li><b>Deny</b> turns it down and takes it off the board, counted as a duty done. You are paid nothing.</li>
+</ul>
+<p>
+  Your Order Console also sells canisters of dangerous gas, which go down the tube to Atmospherics, on the record. In
+  other jobs you put in requests at the crew's Order Console instead, which an NPC Quartermaster answers. See
+  {{ w.link("Cargo") }}.
+</p>
+
+<h2>Tips</h2>
+<ul>
+  <li>A supply pod takes {{ facts.cargo.CARGO_DELIVERY_SECONDS }} seconds, and a duty runs out after
+    {{ facts.duties.DUTY_EXPIRY_SECONDS // 60 }} minutes. Order as soon as the request comes in.</li>
+  <li>Your Order Console charges half what the supply counter and the crew's Order Console do, so what you order for
+    yourself is cheap.</li>
+  <li>Your PDA reads an item's order, counter and export prices, and messages you when a supply pod docks. See
+    {{ w.link("PDA") }}.</li>
+</ul>
+{% endblock %}

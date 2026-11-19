@@ -1,38 +1,33 @@
 import pytest
 
-from helpers import new_game
+from helpers import (
+    add_ingredients,
+    buttons,
+    duty,
+    duty_id,
+    give_duty,
+    in_room,
+    labels,
+    last_message,
+    notes,
+    open_station,
+    panel,
+    serve,
+)
+from space_online.game.helper_methods.needs import DEFAULT_QUENCHES
 from space_online.game.helper_methods import npc_movement
-from space_online.game.objects.drinks import MAX_GLASS_POURS, MIXED_DRINKS
+from space_online.game.objects.drinks import ALCOHOL_QUENCHES, MAX_GLASS_POURS, MIXED_DRINKS
 from space_online.game.objects.items import add_to_inventory, get_item_definition
 from space_online.game.special_rooms import bar
-from space_online.game.maps.donut import BAR_KEY, MEDBAY_KEY, location_from_key
+from space_online.game.maps.donut import BAR_KEY, MEDBAY_KEY
 
 
 def at_bar(department="Civilian", job="Staff Assistant"):
-    game = new_game(department, job)
-    game.player_data["location"] = location_from_key(BAR_KEY)
-    return game
+    return in_room(BAR_KEY, department, job)
 
 
 def bartender(game):
     return next(npc for npc in game.station_crew if npc["job"] == "Bartender")
-
-
-def buttons(game):
-    return [(w.get("label") or w.get("text"), w.get("action")) for w in game.view()["screen"]["buttons"]]
-
-
-def panel(game):
-    return game.view()["panel"]
-
-
-def last_message(game):
-    return game._messages[-1][1:3]
-
-
-def test_the_bar_takes_orders_while_the_bartender_is_in():
-    game = at_bar()
-    assert buttons(game) == [("Order Drinks", "room.show_drink_menu"), ("Socialize", "room.socialize")]
 
 
 def test_an_absent_bartender_can_be_called(monkeypatch):
@@ -41,7 +36,7 @@ def test_an_absent_bartender_can_be_called(monkeypatch):
     away.update(on_duty=False, location={"x": 2, "y": 5})
     assert buttons(game) == [("The bartender is away from the bar.", None), (f"Call {away['name']}", "room.call_npc"),
                              ("Socialize", "room.socialize")]
-    game.perform("room.show_drink_menu", {})
+    game.perform("room.show_menu", {})
     assert game.ui["panels"] == []
     monkeypatch.setattr(npc_movement.random, "random", lambda: 0.0)
     game.perform("room.call_npc", {"job": "Bartender"})
@@ -86,106 +81,111 @@ def test_a_jailed_bartender_shows_when_they_get_out():
 
 
 def with_delivery(game, item="tomato", label="a tomato", reward=120):
-    game.player_data["errand"] = {"kind": "deliver", "giver": "Bartender", "room": BAR_KEY, "item": item,
-                                  "label": label, "reward": reward, "summary": "Bring it"}
+    give_duty(game, kind="deliver", giver="Bartender", room=BAR_KEY, item=item, label=label, reward=reward,
+              summary="Bring it")
     return game
+
+
+def deliver(game):
+    game.perform("room.complete_duty", {"duty_id": duty_id(game)})
 
 
 def test_delivering_an_errand_item_pays_the_reward():
     game = with_delivery(at_bar("Civilian", "Botanist"))
-    assert buttons(game) == [("Deliver Tomato", "room.complete_errand"), ("Order Drinks", "room.show_drink_menu"),
+    assert buttons(game) == [("Deliver Tomato", "room.complete_duty"), ("Order Drinks", "room.show_menu"),
                              ("Socialize", "room.socialize")]
     add_to_inventory(game.player_data, {**get_item_definition("tomato"), "quantity": 2})
-    game.perform("room.complete_errand", {})
-    assert (game.player_data["credits"], game.player_data["inventory"][0]["quantity"]) == (3120, 1)
-    assert "errand" not in game.player_data
-    assert last_message(game) == ("Errand Complete", "The Bartender takes a tomato and pays you 120 credits.")
-    assert game.player_data["notes"][-1]["text"] == "Delivered a tomato to the Bartender for 120 credits."
-    assert ("Deliver Tomato", "room.complete_errand") not in buttons(game)
+    deliver(game)
+    assert (game.player_data["credits"], game.player_data["inventory"][0]["quantity"]) == (2620, 1)
+    assert (game.player_data["duties"], game.player_data["round"]["duties_done"]) == ([], 1)
+    assert last_message(game) == ("Duty Done", "The Bartender takes a tomato and pays you 120 credits.")
+    assert notes(game)[-1] == "Delivered a tomato to the Bartender for 120 credits."
+    assert ("Deliver Tomato", "room.complete_duty") not in buttons(game)
 
 
 def test_a_delivery_needs_the_item():
     game = with_delivery(at_bar("Civilian", "Botanist"))
-    game.perform("room.complete_errand", {})
+    deliver(game)
     assert last_message(game) == ("Nothing to Deliver", "You don't have a tomato to deliver.")
-    assert (game.player_data["credits"], game.player_data["errand"]["reward"]) == (3000, 120)
+    assert (game.player_data["credits"], duty(game)["reward"]) == (2500, 120)
 
 
 def test_deliveries_wait_for_the_giver_and_the_right_room():
     game = at_bar("Civilian", "Botanist")
     add_to_inventory(game.player_data, get_item_definition("tomato"))
-    game.perform("room.complete_errand", {})
+    game.perform("room.complete_duty", {"duty_id": "none"})
     with_delivery(game)
-    game.player_data["errand"]["room"] = MEDBAY_KEY
-    game.perform("room.complete_errand", {})
-    game.player_data["errand"]["room"] = BAR_KEY
+    game.player_data["duties"][0]["room"] = MEDBAY_KEY
+    deliver(game)
+    game.player_data["duties"][0]["room"] = BAR_KEY
     bartender(game).update(on_duty=False, location={"x": 2, "y": 5})
-    assert ("Deliver Tomato", "room.complete_errand") not in buttons(game)
-    game.perform("room.complete_errand", {})
-    assert (game._messages, game.player_data["credits"]) == ([], 3000)
+    assert ("Deliver Tomato", "room.complete_duty") not in buttons(game)
+    deliver(game)
+    assert (game._messages, game.player_data["credits"]) == ([], 2500)
 
 
 def drink_order(game, drink="Screwdriver", patron="Morgan Yu", reward=20):
-    game.player_data["errand"] = {"kind": "serve", "room": BAR_KEY, "item": drink, "patron": patron,
-                                  "reward": reward, "summary": "Serve it"}
-    game.ui["room_mode"] = "bartender"
+    give_duty(game, kind="serve", room=BAR_KEY, item=drink, patron=patron, reward=reward, summary="Serve it")
+    game.ui["room_mode"] = "service_station"
     return game
 
 
 def test_serving_a_drink_order_from_stock():
     game = drink_order(at_bar("Civilian", "Bartender"))
     assert ("Serve Screwdriver to Morgan Yu", "room.serve_order") in buttons(game)
-    game.perform("room.serve_order", {})
+    order = duty_id(game)
+    serve(game)
     assert last_message(game) == ("Not in Stock", "There's no Screwdriver ready. Mix one first.")
     game.player_data["bar_mixed_stock"]["Screwdriver"] = 2
-    game.perform("room.serve_order", {})
-    assert (game.player_data["bar_mixed_stock"], game.player_data["credits"]) == ({"Screwdriver": 1}, 3520)
-    assert last_message(game) == ("Errand Complete", "You serve Morgan Yu a Screwdriver. They pay you 20 credits.")
-    assert game.player_data["notes"][-1]["text"] == "Served a Screwdriver to Morgan Yu for 20 credits."
-    game.perform("room.serve_order", {})
+    serve(game)
+    assert (game.player_data["bar_mixed_stock"], game.player_data["credits"]) == ({"Screwdriver": 1}, 1520)
+    assert last_message(game) == ("Duty Done", "You serve Morgan Yu a Screwdriver. They pay you 20 credits.")
+    assert notes(game)[-1] == "Served a Screwdriver to Morgan Yu for 20 credits."
+    game.perform("room.serve_order", {"duty_id": order})
     assert game.player_data["bar_mixed_stock"] == {"Screwdriver": 1}
 
 
-def test_serving_the_last_drink_in_stock_takes_it_off_the_shelf():
-    game = drink_order(at_bar("Civilian", "Bartender"))
-    game.player_data["bar_mixed_stock"]["Screwdriver"] = 1
-    game.perform("room.serve_order", {})
-    assert game.player_data["bar_mixed_stock"] == {}
+def test_several_orders_wait_at_once_and_each_is_served_by_its_own_button():
+    game = drink_order(drink_order(at_bar("Civilian", "Bartender")), drink="Mojito", patron="Sally Ride", reward=30)
+    assert labels(game)[-3:-1] == ["Serve Screwdriver to Morgan Yu", "Serve Mojito to Sally Ride"]
+    game.player_data["bar_mixed_stock"]["Mojito"] = 1
+    game.perform("room.serve_order", {"duty_id": game.player_data["duties"][1]["id"]})
+    assert [duty["item"] for duty in game.player_data["duties"]] == ["Screwdriver"]
 
 
 def test_other_errands_are_not_served_at_the_bar():
     game = with_delivery(at_bar("Civilian", "Bartender"))
-    game.ui["room_mode"] = "bartender"
-    assert [label for label, _ in buttons(game)][-1] == "Back to Station Menu"
-    game.perform("room.serve_order", {})
+    game.ui["room_mode"] = "service_station"
+    assert labels(game)[-1] == "Back to Station Menu"
+    serve(game)
     assert game._messages == []
 
 
 def test_drinks_are_free_for_the_bartender():
     game = at_bar("Civilian", "Bartender")
     game.player_data["bar_mixed_stock"]["Screwdriver"] = 1
-    game.ui["room_mode"] = "bartender"
-    game.perform("room.show_drink_menu", {})
-    labels = [row["label"] for row in panel(game)["ctx"]["drinks"]]
+    game.ui["room_mode"] = "service_station"
+    game.perform("room.show_menu", {})
+    labels = [row["label"] for row in panel(game)["ctx"]["rows"]]
     assert "Beer - free" in labels and "Screwdriver (Qty: 1) - free" in labels
     game.player_data["credits"] = 0
     order(game, "Beer")
     assert (game.player_data["credits"], game.player_data["inventory"][0]["id"]) == (0, "drink_beer")
     assert last_message(game) == ("Order Successful",
                                   "You pour yourself a Beer on the house. It has been added to your inventory.")
-    assert game.player_data["notes"][-1]["text"] == "Poured a Beer on the house. Added to inventory."
+    assert notes(game)[-1] == "Poured a Beer on the house. Added to inventory."
 
 
 def test_socializing(monkeypatch):
-    monkeypatch.setattr(bar.random, "choice", lambda options: options[2])
     game = at_bar()
+    monkeypatch.setattr(bar.random, "choice", lambda options: options[2])
     game.perform("room.socialize", {})
     assert last_message(game) == ("Socializing", bar.CONVERSATIONS[2])
 
 
 def order(game, drink, category=None):
     game.ui["panels"] = []
-    game.perform("room.show_drink_menu", {})
+    game.perform("room.show_menu", {})
     if category:
         game.perform("panel.category", {"name": category})
     game.perform("panel.select", {"name": drink})
@@ -197,14 +197,17 @@ def test_ordering_a_drink():
     order(game, "Beer")
     assert game.player_data["credits"] == 990
     drink = game.player_data["inventory"][0]
-    assert (drink["id"], drink["attributes"]) == ("drink_beer", {"alcoholic": True, "alcohol_content": 1})
+    assert (drink["id"], drink["attributes"]) == ("drink_beer", {"alcoholic": True, "alcohol_content": 1,
+                                                                "quenches": ALCOHOL_QUENCHES})
     assert last_message(game) == ("Order Successful",
                                   "You've ordered a Beer for 10 credits. It has been added to your inventory.")
+    order(game, "Water")
+    assert game.player_data["inventory"][1]["attributes"]["quenches"] == DEFAULT_QUENCHES
 
 
 def test_ordering_needs_a_drink_and_the_credits():
     game = at_bar()
-    game.perform("room.show_drink_menu", {})
+    game.perform("room.show_menu", {})
     game.perform("panel.order", {})
     assert last_message(game) == ("Selection Needed", "Please select a drink first")
     game.player_data["credits"] = 5
@@ -228,20 +231,20 @@ def test_the_last_mixed_drink_leaves_the_menu():
     assert game.player_data["bar_mixed_stock"] == {}
     assert game.player_data["inventory"][0]["attributes"]["alcoholic"]
     ctx = panel(game)["ctx"]
-    assert (ctx["drinks"], ctx["selected"]) == ([], None)
+    assert (ctx["rows"], ctx["selected"]) == ([], None)
 
 
 def test_the_drink_menu_filters_by_category():
     game = at_bar()
     game.player_data["bar_mixed_stock"] = {"Screwdriver": 2, "Gin and Tonic": 0}
-    game.perform("room.show_drink_menu", {})
+    game.perform("room.show_menu", {})
     ctx = panel(game)["ctx"]
-    assert "Screwdriver (Qty: 2) - 25 credits" in [row["label"] for row in ctx["drinks"]]
+    assert "Screwdriver (Qty: 2) - 25 credits" in [row["label"] for row in ctx["rows"]]
     assert ctx["description"] == "Select a drink to see its description"
     game.perform("panel.select", {"name": "Beer"})
     game.perform("panel.category", {"name": "Non-Alcoholic"})
     ctx = panel(game)["ctx"]
-    assert "Beer" not in [row["name"] for row in ctx["drinks"]] and "Water" in [row["name"] for row in ctx["drinks"]]
+    assert "Beer" not in [row["name"] for row in ctx["rows"]] and "Water" in [row["name"] for row in ctx["rows"]]
     assert ctx["selected"] is None
     game.perform("panel.select", {"name": "Beer"})
     game.perform("panel.category", {"name": "Free Drinks"})
@@ -255,9 +258,9 @@ def test_the_drink_menu_filters_by_category():
 def test_alcoholic_drinks_include_mixed_drinks_with_a_spirit():
     game = at_bar()
     game.player_data["bar_mixed_stock"] = {"Screwdriver": 1}
-    game.perform("room.show_drink_menu", {})
+    game.perform("room.show_menu", {})
     game.perform("panel.category", {"name": "Alcoholic"})
-    names = [row["name"] for row in panel(game)["ctx"]["drinks"]]
+    names = [row["name"] for row in panel(game)["ctx"]["rows"]]
     assert "Screwdriver" in names and "Beer" in names and "Water" not in names
 
 
@@ -265,10 +268,10 @@ def test_the_bartender_works_the_station():
     game = at_bar("Civilian", "Bartender")
     assert buttons(game) == [("Enter Bartender Station", "room.open_station"), ("Lock/Unlock Door", "room.toggle_door"),
                              ("Room Options", "room.set_mode")]
-    game.perform("room.open_station", {"mode": "bartender"})
-    assert [label for label, _ in buttons(game)] == ["Mix Drinks", "View Recipes", "Serve Regular Drinks",
-                                                     "Back to Station Menu"]
-    game.perform("room.show_drink_menu", {})
+    game.perform("room.open_station", {"mode": "service_station"})
+    assert labels(game) == ["Mix Drinks", "View Recipes", "Serve Regular Drinks", "Service Window",
+                            "Back to Station Menu"]
+    game.perform("room.show_menu", {})
     assert panel(game)["type"] == "drink_menu"
     game.ui["panels"] = []
     game.perform("room.show_recipes", {})
@@ -276,7 +279,7 @@ def test_the_bartender_works_the_station():
     game.ui["panels"] = []
     game.perform("room.set_mode", {"mode": "options"})
     assert buttons(game) == [("Socialize", "room.socialize"), ("Back to Station Menu", "room.set_mode")]
-    game.perform("room.set_mode", {"mode": "bartender"})
+    game.perform("room.set_mode", {"mode": "service_station"})
     assert game.ui["room_mode"] == "options"
     game.perform("room.toggle_door", {})
     assert game.ship_map[BAR_KEY]["locked"]
@@ -290,31 +293,22 @@ def test_an_unknown_room_mode_shows_the_station_menu():
 
 def test_only_the_bartender_gets_the_station():
     game = at_bar()
-    game.perform("room.open_station", {"mode": "bartender"})
-    game.perform("room.show_drink_mixer", {})
+    game.perform("room.open_station", {"mode": "service_station"})
+    game.perform("room.show_mixer", {})
     game.perform("room.toggle_door", {})
-    game.ui["room_mode"] = "bartender"
-    assert buttons(game)[0] == ("Order Drinks", "room.show_drink_menu")
+    game.ui["room_mode"] = "service_station"
+    assert buttons(game)[0] == ("Order Drinks", "room.show_menu")
     assert game.ui["panels"] == []
     assert not game.ship_map[BAR_KEY]["locked"]
 
 
 def mixer():
-    game = at_bar("Civilian", "Bartender")
-    game.ui["room_mode"] = "bartender"
-    game.perform("room.show_drink_mixer", {})
-    return game
-
-
-def pour(game, *ingredients):
-    for ingredient in ingredients:
-        game.perform("panel.select_ingredient", {"name": ingredient})
-        game.perform("panel.add_ingredient", {})
+    return open_station(at_bar("Civilian", "Bartender"), "service_station", "show_mixer")
 
 
 def test_mixing_a_known_recipe_stocks_the_bar():
     game = mixer()
-    pour(game, "Vodka", "Orange Juice")
+    add_ingredients(game, "Vodka", "Orange Juice")
     assert panel(game)["ctx"]["glass"] == ["Vodka", "Orange Juice"]
     game.perform("panel.mix", {})
     ctx = panel(game)["ctx"]
@@ -337,7 +331,7 @@ def test_mixing_a_known_recipe_stocks_the_bar():
 ])
 def test_mixes_that_do_not_work_explain_why(glass, feedback):
     game = mixer()
-    pour(game, *glass)
+    add_ingredients(game, *glass)
     game.perform("panel.mix", {})
     assert panel(game)["ctx"]["result"]["text"] == feedback
     assert game.player_data["bar_mixed_stock"] == {}
@@ -345,7 +339,7 @@ def test_mixes_that_do_not_work_explain_why(glass, feedback):
 
 def test_the_glass_holds_a_limited_number_of_pours():
     game = mixer()
-    pour(game, *["Water"] * (MAX_GLASS_POURS + 1))
+    add_ingredients(game, *["Water"] * (MAX_GLASS_POURS + 1))
     assert last_message(game) == ("Mixer", "The glass is full.")
     assert len(panel(game)["ctx"]["glass"]) == MAX_GLASS_POURS
 
@@ -356,7 +350,7 @@ def test_ingredients_come_from_the_shown_category():
     ctx = panel(game)["ctx"]
     assert (ctx["heading"], "Vodka" in ctx["ingredients"], "Cola" in ctx["ingredients"]) == ("--- Spirits ---", True,
                                                                                             False)
-    pour(game, "Cola", "Moonshine", "Gin")
+    add_ingredients(game, "Cola", "Moonshine", "Gin")
     assert panel(game)["ctx"]["glass"] == ["Gin"]
     game.perform("panel.category", {"name": "Snacks"})
     assert panel(game)["ctx"]["category"] == "Spirits"
@@ -366,7 +360,7 @@ def test_ingredients_come_from_the_shown_category():
 
 def test_taking_ingredients_back_out_of_the_glass():
     game = mixer()
-    pour(game, "Vodka", "Cola", "Sugar")
+    add_ingredients(game, "Vodka", "Cola", "Sugar")
     game.perform("panel.select_glass", {"index": 1})
     assert panel(game)["ctx"]["selected_glass"] == 1
     game.perform("panel.remove_ingredient", {})

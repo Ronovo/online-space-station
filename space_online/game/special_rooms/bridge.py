@@ -1,9 +1,17 @@
 import random
 
-from space_online.game.character_methods.character_creation import JOBS, REQUESTABLE_JOBS
-from space_online.game.helper_methods.door_control import SPECIAL_ROOM_DOORS
+from space_online.game.character_methods.character_creation import JOBS, REQUESTABLE_JOBS, UNIQUE_JOBS
+from space_online.game.helper_methods.errands import duty_by_id, leave_duties_behind, record_duty_done, with_article
 from space_online.game.helper_methods.jail import set_warrant
-from space_online.game.helper_methods.npc_movement import reassign_npc_post
+from space_online.game.helper_methods.game_clock import get_elapsed_seconds
+from space_online.game.helper_methods.npc_movement import (
+    JOB_POSTS,
+    can_work,
+    crew_named,
+    open_post,
+    post_holder,
+    reassign_npc_post,
+)
 from space_online.game.helper_methods.ui_panels import (
     choice_handler,
     current_feedback,
@@ -12,24 +20,44 @@ from space_online.game.helper_methods.ui_panels import (
     set_feedback,
 )
 from space_online.game.special_rooms.shared import (
-    PLAYER_CREW_INDEX,
     SpecialRoomBase,
     available_npc,
     button,
-    member_for_crew_index,
+    member_named,
     npc_contact_widgets,
     room_action,
     text_line,
 )
-from space_online.game.maps.donut import BRIDGE_KEY, SECURITY_KEY
+from space_online.game.helper_methods.antagonists import alert_level
+from space_online.game.helper_methods.rounds import (
+    call_shuttle,
+    captain_caller,
+    recall_shuttle,
+    shuttle_call_blocked,
+    shuttle_recall_blocked,
+)
+from space_online.game.maps.donut import BRIDGE_KEY, DEPARTURES_KEY, LOCKABLE_ROOM_KEYS, ROOMS, SECURITY_KEY
 from space_online.game.special_rooms.engineering import apply_power_mode, set_system_level
 
-# Department doors a sector lockdown can close.
-LOCKDOWN_DOOR_KEYS = tuple(key for key in SPECIAL_ROOM_DOORS if key not in (BRIDGE_KEY, SECURITY_KEY))
+# Giving away one of the UNIQUE_JOBS moves its holder to this job.
+RELIEVED_JOB = "Staff Assistant"
+# Taking one of these jobs away from someone asks first.
+CONFIRMED_DEMOTIONS = ("Head of Personnel", "Doctor", "Engineer", "Security Guard")
+
+# Department doors a sector lockdown can close. Departures stays open so the crew can always reach the shuttle.
+LOCKDOWN_DOOR_KEYS = tuple(key for key in LOCKABLE_ROOM_KEYS
+                           if key not in (BRIDGE_KEY, SECURITY_KEY, DEPARTURES_KEY))
+
+
+# A Head of Personnel answers the player's own access request this many game seconds after it is put in.
+ACCESS_DECISION_SECONDS_RANGE = (30, 60)
+ACCESS_APPROVAL_CHANCE = 0.5
+ACCESS_PENDING = "Decision pending: the Head of Personnel will answer on your PDA"
 
 
 def pending_access_request(player_data):
-    """The access request waiting for the HoP, or None."""
+    """The access request waiting for the HoP, or None. Its decide_at is when the NPC Head of Personnel answers the
+    player's own request, and None for a crew member's request waiting on the player as Head of Personnel."""
     request = player_data.get("access_request")
     return request if request and request.get("requested_job") else None
 
@@ -51,7 +79,7 @@ class Bridge(SpecialRoomBase):
         {"label": "Enter Captain's Station", "mode": "captain_station", "subdepartments": {"Captain"}},
         {"label": "Enter HoP's Station", "mode": "hop_station", "subdepartments": {"Captain", "HoP"}},
     )
-    CONTACT_JOBS = ("Captain", "Head of Personnel")
+    CONTACT_POSTS = {"Captain": DOOR_KEY, "Head of Personnel": DOOR_KEY}
 
     def room_options(self):
         return [button("Talk to Ship Leadership", "room.talk_to_leadership")] + self.back_to_station_menu()
@@ -59,7 +87,7 @@ class Bridge(SpecialRoomBase):
     def mode_buttons(self, mode):
         if mode == "leadership":
             return self._leadership_buttons()
-        if mode == "hop_talk" and available_npc(self.game, "Head of Personnel"):
+        if mode == "hop_talk" and available_npc(self.game, "Head of Personnel", self.DOOR_KEY):
             return [
                 text_line("Head of Personnel", style="title"),
                 button("Access Control", "room.show_access_control"),
@@ -71,7 +99,9 @@ class Bridge(SpecialRoomBase):
                 text_line("Captain's Station", style="title"),
                 button("Station Status", "room.show_station_status"),
                 button("Security Alerts", "room.security_alerts"),
+                button("Incident Log", "room.show_incident_log"),
                 button("Crew Manifest", "room.show_crew_manifest"),
+                self._shuttle_button(),
                 button("Back to Bridge Menu", "room.set_mode", mode="menu"),
             ]
         if mode == "hop_station" and self.station_allowed(mode):
@@ -83,6 +113,39 @@ class Bridge(SpecialRoomBase):
                 button("Back to Bridge Menu", "room.set_mode", mode="menu"),
             ]
         return None
+
+    def _shuttle_button(self):
+        """Recall while the shuttle is on its way here and can still be sent back, otherwise call it. A shuttle
+        that can't be recalled leaves the reason where the button was."""
+        if self.player_data["round"]["shuttle"]["state"] != "called":
+            return button("Call Crew Shuttle", "room.call_shuttle")
+        blocked = shuttle_recall_blocked(self.player_data)
+        return text_line(blocked) if blocked else button("Recall Crew Shuttle", "room.recall_shuttle")
+
+    @room_action(station="captain_station")
+    def call_shuttle(self):
+        blocked = shuttle_call_blocked(self.player_data)
+        if blocked:
+            self.game.alert("Crew Shuttle", blocked)
+            return
+        self.game.ask(
+            "Call Crew Shuttle",
+            "Call the crew shuttle and end the shift? It can be recalled once a shift, and only until it is "
+            "halfway here.",
+            [("Call It", "call_shuttle", None), ("Not Yet", None, None)],
+        )
+
+    @room_action(station="captain_station")
+    def recall_shuttle(self):
+        blocked = shuttle_recall_blocked(self.player_data)
+        if blocked:
+            self.game.alert("Crew Shuttle", blocked)
+            return
+        self.game.ask(
+            "Recall Crew Shuttle",
+            "Send the crew shuttle back? It can only be recalled once a shift.",
+            [("Recall It", "recall_shuttle", None), ("Not Yet", None, None)],
+        )
 
     def _leadership_present(self):
         """Return which leadership jobs exist on the station (player + NPCs)."""
@@ -96,6 +159,7 @@ class Bridge(SpecialRoomBase):
             widgets += npc_contact_widgets(
                 self.game,
                 "Captain",
+                self.DOOR_KEY,
                 talk_label="Talk to Captain",
                 talk_action="talk_to_captain",
                 absent_flavor="The Captain is away from the bridge.",
@@ -104,6 +168,7 @@ class Bridge(SpecialRoomBase):
             widgets += npc_contact_widgets(
                 self.game,
                 "Head of Personnel",
+                self.DOOR_KEY,
                 talk_label="Talk to HoP",
                 talk_action="show_hop_talk_menu",
                 absent_flavor="The Head of Personnel is away from the bridge.",
@@ -123,51 +188,39 @@ class Bridge(SpecialRoomBase):
     @room_action
     def talk_to_captain(self):
         """Captain is always too busy for casual conversation."""
-        if available_npc(self.game, "Captain"):
+        if available_npc(self.game, "Captain", self.DOOR_KEY):
             self.game.alert("Captain", "The Captain is too busy for your chats.")
 
     @room_action
     def show_hop_talk_menu(self):
-        if available_npc(self.game, "Head of Personnel"):
+        if available_npc(self.game, "Head of Personnel", self.DOOR_KEY):
             self.game.ui["room_mode"] = "hop_talk"
 
     @room_action
     def show_access_control(self):
-        if available_npc(self.game, "Head of Personnel"):
+        if available_npc(self.game, "Head of Personnel", self.DOOR_KEY):
             self.game.open_panel("access_request")
 
     @room_action
     def resolve_hop_access_request(self):
-        """Talk to HoP: resolve a pending access request with a 50/50 approve/deny."""
-        if available_npc(self.game, "Head of Personnel") is None:
+        """Talk to HoP: they answer access requests on the PDA, not in person."""
+        if available_npc(self.game, "Head of Personnel", self.DOOR_KEY) is None:
             return
-        request = pending_access_request(self.player_data)
-        if request is None:
+        if pending_access_request(self.player_data) is None:
             self.game.alert(
                 "Head of Personnel",
                 "The HoP is busy. Use the Access Control terminal to put in a request.",
             )
             return
-
-        job = request["requested_job"]
-        requester = request.get("requester_name")
-        for_crew = requester and requester != self.player_data.get("name")
-        whose = f"{requester}'s" if for_crew else "your"
-        if random.random() < 0.5:
-            ok, solar_activated, error = apply_access_request_job(self.game, job)
-            if error:
-                self.game.alert("Head of Personnel", error)
-            elif ok:
-                now = f"{requester} is now {job}." if for_crew else f"You are now {job}."
-                self.game.alert("Head of Personnel",
-                                f"The HoP approved {whose} request. {now}{_approved_suffix(solar_activated)}")
-        else:
-            self.player_data.pop("access_request", None)
-            self.game.alert("Head of Personnel", f"The HoP denied {whose} request for {job}.")
+        self.game.alert("Head of Personnel", "The HoP will answer your request on your PDA.")
 
     @room_action(station="captain_station")
     def show_station_status(self):
         self.game.open_panel("station_status")
+
+    @room_action(station="captain_station")
+    def show_incident_log(self):
+        self.game.open_panel("incident_log")
 
     @room_action(station="captain_station")
     def security_alerts(self):
@@ -190,50 +243,84 @@ class Bridge(SpecialRoomBase):
         self.game.open_panel("hop_console")
 
 
-def _lock_down_a_sector(game):
-    ship_map = game.ship_map
-    unlocked = [key for key in LOCKDOWN_DOOR_KEYS if not ship_map[key]["locked"]]
-    if not unlocked:
-        return "Every sector is already locked down."
-    door_key = random.choice(unlocked)
-    ship_map[door_key]["locked"] = True
-    return f"The {SPECIAL_ROOM_DOORS[door_key]['room_name']} door is now locked."
+def _lock_down(game, door_key):
+    door = game.ship_map[door_key]
+    name = ROOMS[door_key].name
+    if door["locked"]:
+        return f"The {name} door is already locked."
+    door["locked"] = True
+    return f"The {name} door is now locked."
 
 
 def _warrant_for(game, suspect):
-    npc = next((n for n in game.station_crew if n.get("name") == suspect), None)
+    npc = crew_named(game.station_crew, suspect)
     if npc is None or npc.get("warrant") or npc.get("in_jail"):
         return f"{suspect} is no longer a suspect."
     set_warrant(npc, "Suspected smuggling")
     return f"A warrant has been issued for {suspect}."
 
 
-@choice_handler("approve_command_request")
-def approve_command_request(game, request, text, suspect):
+def _command_duty(game, args):
+    """The Command Request duty args names, or None."""
+    duty = duty_by_id(game.player_data, args.get("duty_id"))
+    return duty if duty is not None and duty["kind"] == "command" else None
+
+
+@panel_action("duties", "approve_request")
+def approve_request(game, state, args):
+    duty = _command_duty(game, args)
+    if duty is not None:
+        approve_command_request(game, duty)
+
+
+@panel_action("duties", "deny_request")
+def deny_request(game, state, args):
+    duty = _command_duty(game, args)
+    if duty is not None:
+        deny_command_request(game, duty)
+
+
+def approve_command_request(game, duty):
+    """Do what a Command Request asked for, which takes it off the board as a duty done."""
+    game.player_data["duties"].remove(duty)
+    request, text = duty["request"], duty["text"]
     if request == "life_support":
         set_system_level(game, "life_support", 10)
         result = "Life support is now at full power."
     elif request == "power_saving":
-        apply_power_mode(game, "low")
+        changed = apply_power_mode(game, "low")
         result = "The station is now in Power Saving mode."
+        if changed:
+            result += f" {', '.join(changed)}."
     elif request == "lockdown":
-        result = _lock_down_a_sector(game)
+        result = _lock_down(game, duty["door"])
     else:
-        result = _warrant_for(game, suspect)
+        result = _warrant_for(game, duty["suspect"])
+    record_duty_done(game.player_data)
     game.add_note(f"Approved: {text} {result}")
     game.alert("Command Request", f"Approved. {result}")
 
 
-@choice_handler("deny_command_request")
-def deny_command_request(game, text):
+def deny_command_request(game, duty):
+    """Turn a Command Request down, which takes it off the board as a duty done."""
+    game.player_data["duties"].remove(duty)
+    text = duty["text"]
+    record_duty_done(game.player_data)
     game.add_note(f"Denied: {text}")
+    game.alert("Command Request", f"Denied. {text}")
 
 
-def _grant_job(member, job):
+def _grant_job(game, member, job):
+    """Give member job. A player who changes job takes an open post of it when it has more than one, and no
+    post_key for a one-room job."""
     job_info = JOBS[job]
+    if member is game.player_data and job != member["job"]:
+        member["post_key"] = open_post(member, game.station_crew, job) if len(JOB_POSTS.get(job, ())) > 1 else None
     member["job"] = job
     member["department"] = job_info["department"]
     member["subdepartment"] = job_info["subdepartment"]
+    if member is game.player_data:
+        leave_duties_behind(game)
 
 
 def _activate_solar_for_engineer(game, job):
@@ -261,16 +348,15 @@ def apply_access_request_job(game, job, confirmed=False):
 
     requester_name = player_data.get("access_request", {}).get("requester_name")
 
-    # NPC-submitted request (HoP job event): update that crew member.
     if requester_name and requester_name != player_data.get("name"):
-        npc = next((n for n in game.station_crew if n.get("name") == requester_name), None)
+        npc = crew_named(game.station_crew, requester_name)
         player_data.pop("access_request", None)
         if npc is None:
             return False, False, "The requester is no longer on the station. Request cleared."
         if npc.get("job") == "Captain" and not _player_is_captain(player_data):
             return False, False, "Only the Captain can reassign the current Captain. Request cleared."
-        _grant_job(npc, job)
-        reassign_npc_post(npc, job)
+        _grant_job(game, npc, job)
+        reassign_npc_post(game, npc, job)
         return True, _activate_solar_for_engineer(game, job), None
 
     if not confirmed and player_data.get("job") == "Captain" and not _npc_captain_exists(game):
@@ -281,26 +367,69 @@ def apply_access_request_job(game, job, confirmed=False):
         )
         return False, False, None
 
-    _grant_job(player_data, job)
+    _grant_job(game, player_data, job)
     player_data.pop("access_request", None)
     return True, _activate_solar_for_engineer(game, job), None
+
+
+def tick_access_request(game):
+    """The NPC Head of Personnel answers the player's own access request once it is due and they can work: approved
+    or denied at even odds, on the PDA and in the log."""
+    player_data = game.player_data
+    request = pending_access_request(player_data)
+    if request is None or request["decide_at"] is None or get_elapsed_seconds(player_data) < request["decide_at"]:
+        return
+    hop = post_holder(game.station_crew, "Head of Personnel")
+    if hop is None or not can_work(hop):
+        return
+    job = request["requested_job"]
+    request["decide_at"] = None
+    if random.random() < ACCESS_APPROVAL_CHANCE:
+        ok, solar_activated, _ = apply_access_request_job(game, job)
+        if ok:
+            _answer_access_request(game, f"The HoP approved your request. You are now {job}."
+                                         f"{_approved_suffix(solar_activated)}")
+    else:
+        player_data.pop("access_request", None)
+        _answer_access_request(game, f"The HoP denied your request for {job}.")
+
+
+def _answer_access_request(game, message):
+    game.alert("Head of Personnel", message)
+    game.page("Head of Personnel", message)
 
 
 @choice_handler("confirm_access_request")
 def confirm_access_request(game, job):
     request = pending_access_request(game.player_data)
-    if request != {"requested_job": job, "requester_name": game.player_data.get("name")}:
+    if request is None or (request["requested_job"], request["requester_name"]) != (job, game.player_data["name"]):
         return
     _, solar_activated, _ = apply_access_request_job(game, job, confirmed=True)
     game.close_panel("hop_console")
     game.alert("Access Control", f"You are now {job}.{_approved_suffix(solar_activated)}")
 
 
+@choice_handler("call_shuttle")
+def call_shuttle_confirmed(game):
+    """The Captain's own call: urgent when the station is already at Red alert."""
+    call_shuttle(game, "the Captain has ended the shift", urgent=alert_level(game.player_data)[0] == "Red",
+                 caller=captain_caller(game.player_data["name"]))
+
+
+@choice_handler("recall_shuttle")
+def recall_shuttle_confirmed(game):
+    if not recall_shuttle(game):
+        game.alert("Crew Shuttle", shuttle_recall_blocked(game.player_data))
+
+
 @register_panel("access_request", "Access Control")
 def access_request_panel(game, state):
     job = state.get("job")
     player_name = game.player_data.get("name", "Unknown")
-    if job:
+    request = pending_access_request(game.player_data)
+    if request is not None and request["decide_at"] is not None:
+        result = {"text": ACCESS_PENDING, "color": "cyan"}
+    elif job:
         result = {"text": f"{player_name} → {job}", "color": "lightgreen" if state.get("submitted") else "white"}
     else:
         result = {"text": "Select a job to request.", "color": "cyan"}
@@ -325,12 +454,10 @@ def submit(game, state, args):
     if not job:
         set_feedback(state, "Select a job first.", "orange")
         return
-    if job not in REQUESTABLE_JOBS:
-        set_feedback(state, "That job cannot be requested here.", "red")
-        return
     game.player_data["access_request"] = {
         "requested_job": job,
         "requester_name": game.player_data.get("name", "Unknown"),
+        "decide_at": get_elapsed_seconds(game.player_data) + random.randint(*ACCESS_DECISION_SECONDS_RANGE),
     }
     state["submitted"] = True
     set_feedback(state, f"Request for {job} submitted for HoP approval.", "cyan")
@@ -360,6 +487,7 @@ def approve(game, state, args):
         return
     if not ok:
         return
+    record_duty_done(game.player_data)
     game.close_panel("hop_console")
     game.alert("Access Control",
                f"Approved. {req.get('requester_name', 'Crew')} is now {job}.{_approved_suffix(solar_activated)}")
@@ -372,6 +500,7 @@ def deny(game, state, args):
         set_feedback(state, "No pending request to deny.", "orange", seconds=None)
         return
     game.player_data.pop("access_request", None)
+    record_duty_done(game.player_data)
     game.close_panel("hop_console")
     game.alert("Access Control", f"Denied request for {req['requested_job']}.")
 
@@ -381,18 +510,16 @@ def _player_is_captain(player_data):
 
 
 def _assignable_rows(game):
-    """(crew_index, label) rows; Captain NPCs (and the player) only for a Captain."""
-    player_is_captain = _player_is_captain(game.player_data)
+    """(name, label) rows; Captain NPCs (and the player) only for a Captain."""
+    player = game.player_data
+    player_is_captain = _player_is_captain(player)
     rows = []
     if player_is_captain:
-        rows.append((
-            PLAYER_CREW_INDEX,
-            f"{game.player_data.get('name', 'Unknown')} ({game.player_data.get('job', 'Unknown')}) (YOU)",
-        ))
-    for crew_index, npc in enumerate(game.station_crew):
-        if not player_is_captain and npc.get("job") == "Captain":
+        rows.append((player["name"], f"{player['name']} ({player['job']}) (YOU)"))
+    for npc in game.station_crew:
+        if not player_is_captain and npc["job"] == "Captain":
             continue
-        rows.append((crew_index, f"{npc.get('name', 'Unknown')} ({npc.get('job', 'Unknown')})"))
+        rows.append((npc["name"], f"{npc['name']} ({npc['job']})"))
     return rows
 
 
@@ -403,26 +530,25 @@ def _assignable_jobs(player_data):
 @register_panel("job_assignment", "Job Assignment")
 def job_assignment_panel(game, state):
     rows = _assignable_rows(game)
-    crew_index = state.get("crew_index")
-    if crew_index not in {index for index, _ in rows}:
-        crew_index = None
+    crew_name = state.get("crew_name")
+    if crew_name not in {name for name, _ in rows}:
+        crew_name = None
     job = state.get("job")
 
-    if crew_index is not None:
-        member = member_for_crew_index(crew_index, game.player_data, game.station_crew)
+    if crew_name is not None:
         if job:
-            result = {"text": f"{member.get('name', 'Unknown')} → {job}", "color": state.get("result_color", "white")}
+            result = {"text": f"{crew_name} → {job}", "color": state.get("result_color", "white")}
         else:
-            result = {"text": f"{member.get('name', 'Unknown')} - select a job.", "color": "cyan"}
+            result = {"text": f"{crew_name} - select a job.", "color": "cyan"}
     elif job:
         result = {"text": f"Select an NPC for {job}.", "color": "cyan"}
     else:
         result = {"text": "Select an NPC and a job to confirm.", "color": "cyan"}
 
     return {
-        "rows": [{"index": index, "label": label} for index, label in rows],
+        "rows": [{"name": name, "label": label} for name, label in rows],
         "jobs": _assignable_jobs(game.player_data),
-        "crew_index": crew_index,
+        "crew_name": crew_name,
         "job": job,
         "result": result,
         "feedback": current_feedback(state),
@@ -431,7 +557,7 @@ def job_assignment_panel(game, state):
 
 @panel_action("job_assignment")
 def select_member(game, state, args):
-    state["crew_index"] = int(args["index"])
+    state["crew_name"] = args["name"]
     state["result_color"] = "white"
 
 
@@ -448,64 +574,89 @@ def _npc_captain_exists(game):
 
 @panel_action("job_assignment")
 def assign(game, state, args):
-    crew_index = state.get("crew_index")
+    crew_name = state.get("crew_name")
     job = state.get("job")
-    if crew_index is None or not job:
+    if crew_name is None or not job:
         set_feedback(state, "Select both an NPC and a job first.", "orange")
         return
-    if crew_index not in {index for index, _ in _assignable_rows(game)}:
+    if crew_name not in {name for name, _ in _assignable_rows(game)}:
         set_feedback(state, "Invalid NPC selection.", "red")
         return
     if job not in JOBS:
         set_feedback(state, "Invalid job selection.", "red")
         return
 
-    player_is_captain = _player_is_captain(game.player_data)
-    if job == "Captain" and not player_is_captain:
+    if job == "Captain" and not _player_is_captain(game.player_data):
         set_feedback(state, "Only the Captain can assign the Captain role.", "orange")
         return
 
-    member = member_for_crew_index(crew_index, game.player_data, game.station_crew)
-    if not player_is_captain and crew_index != PLAYER_CREW_INDEX and member.get("job") == "Captain":  # pragma: no cover - a non-Captain is never offered the Captain's row
-        set_feedback(state, "Only the Captain can reassign the current Captain.", "orange")
+    member = member_named(game, crew_name)
+    question = _assignment_question(game, member, job)
+    if question:
+        game.ask("Confirm Reassignment", question,
+                 [("Yes", "assign_role", {"crew_name": crew_name, "job": job}), ("No", None, None)])
         return
 
-    if (
-        crew_index == PLAYER_CREW_INDEX
-        and member.get("job") == "Captain"
-        and job != "Captain"
-        and not _npc_captain_exists(game)
-    ):
-        game.ask(
-            "Confirm Reassignment",
-            "You are about to give up captain access with no captain. Continue?",
-            [("Yes", "assign_role", {"crew_index": crew_index, "job": job}), ("No", None, None)],
-        )
-        return
+    assign_role(game, crew_name, job)
 
-    assign_role(game, crew_index, job)
+
+def _holders(game, job, besides):
+    """Everyone aboard, the player included, who holds job, other than besides."""
+    return [member for member in (game.player_data, *game.station_crew)
+            if member["job"] == job and member is not besides]
+
+
+def _job_title(job):
+    """'the Captain', 'an Engineer': job as it reads after "is now"."""
+    return f"the {job}" if job in UNIQUE_JOBS else with_article(job)
+
+
+def _assignment_question(game, member, job):
+    """What to confirm before giving member job, or None when it can go ahead."""
+    name, old_job = member["name"], member["job"]
+    if job == old_job:
+        return None
+    lines = []
+    if member is game.player_data and old_job == "Captain":
+        lines.append("You are about to give up the Captain's post.")
+    elif old_job in CONFIRMED_DEMOTIONS:
+        lines.append(f"{name} will no longer be the {old_job}.")
+    if job in UNIQUE_JOBS:
+        lines += [f"{holder['name']} is the {job} and will become {_job_title(RELIEVED_JOB)}."
+                  for holder in _holders(game, job, member)]
+    return " ".join(lines + ["Continue?"]) if lines else None
+
+
+def _move_to_job(game, member, job):
+    _grant_job(game, member, job)
+    if member is not game.player_data:
+        reassign_npc_post(game, member, job)
 
 
 @choice_handler("assign_role")
-def assign_role(game, crew_index, job):
-    if crew_index != PLAYER_CREW_INDEX and not (0 <= crew_index < len(game.station_crew)):
+def assign_role(game, crew_name, job):
+    """Give crew_name job. A Captain or Head of Personnel already in post becomes a Staff Assistant."""
+    member = member_named(game, crew_name)
+    if member is None:
         return
-    member = member_for_crew_index(crew_index, game.player_data, game.station_crew)
-    _grant_job(member, job)
+    relieved = _holders(game, job, member) if job in UNIQUE_JOBS else []
+    _move_to_job(game, member, job)
+    for holder in relieved:
+        _move_to_job(game, holder, RELIEVED_JOB)
+    solar_activated = _activate_solar_for_engineer(game, job)
+    game.alert("Job Assignment", " ".join([f"{member['name']} is now {_job_title(job)}."]
+                                          + [f"{holder['name']} is now {_job_title(RELIEVED_JOB)}."
+                                             for holder in relieved]))
 
-    if crew_index == PLAYER_CREW_INDEX:
-        _activate_solar_for_engineer(game, job)
+    if member is game.player_data or any(holder is game.player_data for holder in relieved):
         game.close_panel("job_assignment")
         return
 
-    reassign_npc_post(member, job)
-    solar_activated = _activate_solar_for_engineer(game, job)
-
     state = game.top_panel()
-    if state is None or state["type"] != "job_assignment":  # pragma: no cover - an NPC is only assigned from the Job Assignment panel
-        return
     state["result_color"] = "lightgreen"
-    feedback = f"Assigned {member.get('name', 'Unknown')} as {job}."
+    feedback = f"Assigned {member['name']} as {job}."
+    if member.get("in_jail"):
+        feedback += " They take up the post when released."
     if solar_activated:
         feedback += " Solar arrays are now active."
     set_feedback(state, feedback, "cyan")

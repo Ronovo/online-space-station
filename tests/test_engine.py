@@ -1,14 +1,15 @@
-import logging
 import time
-from types import SimpleNamespace
 
 import pytest
 
-from helpers import new_game, reports
+from helpers import crew, drain, fix_random, new_game, reports, tick_after
 from space_online.game import main
-from space_online.game.helper_methods import jail, player_movement, ui_panels
+from space_online.game.helper_methods import game_clock, jail, player_movement, ui_panels
+from space_online.game.helper_methods.rounds import CAREER
 from space_online.game.helper_methods.oxygen_helper import OXYGEN_DEATH_TITLE, POST_DEATH_OXYGEN
+from space_online.game.helper_methods.power_constants import LOW_POWER_ALERT, POWER_OUTAGE_ALERT
 from space_online.game.maps.donut import BAR_KEY, QUARTERS_KEY, QUARTERS_LOCATION, SECURITY_KEY
+from space_online.game.special_rooms.engineering import POWER_MODE_LEVELS
 
 QUIET_TILE = {"x": 2, "y": 5}
 
@@ -26,22 +27,13 @@ def quiet(game):
     return game
 
 
-def at(game, x, y):
+def on_tile(game, x, y):
     game.player_data["location"] = {"x": x, "y": y}
     return game
 
 
-def crew(game, job):
-    return next(npc for npc in game.station_crew if npc["job"] == job)
-
-
-def messages(game):
-    return [message for _, _, message, _ in game._messages]
-
-
-def due_tick(game, seconds=60):
-    """Make the next tick() run, as if `seconds` of real time had passed."""
-    game.player_data["game_clock"]["last_real_time"] = time.time() - seconds
+def message_texts(game):
+    return [message for _, message, _ in game._messages]
 
 
 def grid_labels(view):
@@ -50,39 +42,39 @@ def grid_labels(view):
 
 
 def test_the_hallway_shows_the_ways_on_and_the_doors_here():
-    view = at(quiet(new_game()), 0, 0).view()
+    view = on_tile(quiet(new_game()), 0, 0).view()
     assert view["screen"]["type"] == "hallway"
     assert view["screen"]["coords"] == "Location: 0 North, 0 East"
     assert grid_labels(view) == {
         "Go North": (0, 1, "game.move", {"direction": "north"}),
         "Go East": (1, 2, "game.move", {"direction": "east"}),
-        "Quarters": (3, 1, "game.enter_room", {"room_key": QUARTERS_KEY}),
+        "Quarters": (2, 1, "game.enter_room", {"room_key": QUARTERS_KEY}),
     }
 
 
 def test_walking_the_hallway():
-    game = at(quiet(new_game()), 0, 0)
+    game = on_tile(quiet(new_game()), 0, 0)
     game.perform("game.move", {"direction": "north"})
     assert game.player_data["location"] == {"x": 1, "y": 0}
     game.perform("game.move", {"direction": "east"})
     assert game.player_data["location"] == {"x": 1, "y": 0}
-    assert game.drain_alerts() == [{"title": "Error", "message": "You can't go that way!", "kind": "error"}]
+    assert drain(game) == [{"title": "Error", "message": "You can't go that way!", "kind": "error"}]
     game.perform("game.move", {"direction": "up"})
     assert game.player_data["location"] == {"x": 1, "y": 0}
-    assert game.drain_alerts() == []
+    assert drain(game) == []
 
 
 def test_no_walking_inside_a_room_or_with_a_panel_open():
     game = quiet(new_game())
     game.perform("game.move", {"direction": "north"})
     assert game.player_data["location"] == QUARTERS_LOCATION
-    at(game, 0, 0).perform("game.character_sheet", {})
+    on_tile(game, 0, 0).perform("game.character_sheet", {})
     game.perform("game.move", {"direction": "north"})
     assert game.player_data["location"] == {"x": 0, "y": 0}
 
 
 def test_entering_and_leaving_a_room():
-    game = at(quiet(new_game()), 0, 3)
+    game = on_tile(quiet(new_game()), 0, 3)
     game.perform("game.enter_room", {"room_key": BAR_KEY})
     assert game.location_key() == BAR_KEY
     assert game.view()["screen"]["type"] == "room"
@@ -92,7 +84,7 @@ def test_entering_and_leaving_a_room():
 
 @pytest.mark.parametrize("where, panel", [((0, 0), False), ((0, 3), True)])
 def test_only_the_door_in_front_of_you_opens_and_only_with_no_panel_open(where, panel):
-    game = at(quiet(new_game()), *where)
+    game = on_tile(quiet(new_game()), *where)
     if panel:
         game.open_panel("character_sheet")
     game.perform("game.enter_room", {"room_key": BAR_KEY})
@@ -106,11 +98,11 @@ def test_entering_a_room_from_inside_another_does_nothing():
 
 
 def test_a_locked_door_keeps_you_out():
-    game = at(quiet(new_game()), 0, 3)
+    game = on_tile(quiet(new_game()), 0, 3)
     game.ship_map[BAR_KEY]["locked"] = True
     game.perform("game.enter_room", {"room_key": BAR_KEY})
     assert game.player_data["location"] == {"x": 0, "y": 3}
-    assert messages(game) == ["The Bar door is locked."]
+    assert message_texts(game) == ["The Bar door is locked."]
 
 
 def test_save_and_exit_goes_home_unless_a_panel_is_open():
@@ -126,7 +118,7 @@ def test_save_and_exit_goes_home_unless_a_panel_is_open():
 def test_a_pending_choice_blocks_everything_but_answering_it(monkeypatch):
     picked = []
     monkeypatch.setitem(ui_panels.CHOICE_HANDLERS, "test_pick", lambda game, **args: picked.append(args))
-    game = at(quiet(new_game()), 0, 0)
+    game = on_tile(quiet(new_game()), 0, 0)
     game.ask("Pick", "Which one?", [("This", "test_pick", {"n": 1}), ("Nothing", None, None)])
     choice = game.view()["choice"]
     assert (choice["title"], choice["message"], choice["buttons"]) == ("Pick", "Which one?", ["This", "Nothing"])
@@ -145,25 +137,25 @@ def test_a_button_without_a_handler_just_closes_the_choice():
     game.perform("game.choose", {"id": game.ui["choices"][0]["id"], "index": 0})
     assert game.ui["choices"] == []
     game.perform("game.choose", {"id": "none left", "index": 0})
-    assert game.drain_alerts() == []
+    assert drain(game) == []
 
 
 @pytest.mark.parametrize("action, args", [("game.move", {}), ("game.enter_room", "not a dict"),
                                           ("game.choose", "not a dict")])
 def test_unusable_arguments_are_refused(action, args):
-    game = at(quiet(new_game()), 0, 0)
+    game = on_tile(quiet(new_game()), 0, 0)
     if action == "game.choose":
         game.ask("Pick", "?", [("OK", None, None)])
         args = {"id": game.ui["choices"][0]["id"], "index": "first"}
     game.perform(action, args)
-    assert game.drain_alerts() == [{"title": "Error", "message": "That action could not be completed.", "kind": "error"}]
+    assert drain(game) == [{"title": "Error", "message": "That action could not be completed.", "kind": "error"}]
 
 
 @pytest.mark.parametrize("action", ["game.fly", "game", "nonsense.move", "panel.inventory", "room.exit"])
 def test_actions_that_do_not_apply_do_nothing(action):
-    game = at(quiet(new_game()), 0, 0)
+    game = on_tile(quiet(new_game()), 0, 0)
     game.perform(action, {})
-    assert (game.player_data["location"], game.ui["panels"], game.drain_alerts()) == ({"x": 0, "y": 0}, [], [])
+    assert (game.player_data["location"], game.ui["panels"], drain(game)) == ({"x": 0, "y": 0}, [], [])
 
 
 def test_panels_stack_and_close():
@@ -201,7 +193,7 @@ def test_the_character_sheet_colours_damage_and_limbs():
 
 
 def test_room_actions_wait_until_the_panels_are_closed():
-    game = at(quiet(new_game()), 0, 3)
+    game = on_tile(quiet(new_game()), 0, 3)
     game.enter_room(BAR_KEY)
     game.open_panel("character_sheet")
     game.perform("room.exit", {})
@@ -230,70 +222,104 @@ def test_replacing_and_closing_panels():
     assert game.top_panel() is None
 
 
-def test_reports_merge_into_the_first_alerts_place():
+def test_messages_go_to_the_station_log_newest_first_and_read_as_new_for_a_while():
     game = new_game()
-    game.report("Power", "Low", "warning")
+    game.player_data["game_clock"]["elapsed_seconds"] = 125
+    game.alert("Power", "Low", "warning")
+    game.player_data["game_clock"]["elapsed_seconds"] = 130
     game.alert("Door", "Locked")
-    game.report("Oxygen", "Thin", "error")
-    assert game.drain_alerts() == [
-        {"title": "Station Alerts", "message": "[Power] Low\n\n[Oxygen] Thin", "kind": "error"},
-        {"title": "Door", "message": "Locked", "kind": "info"},
+    assert game.view()["log"] == [
+        {"time": "2m", "title": "Door", "text": "Locked", "kind": "info", "new": True},
+        {"time": "2m", "title": "Power", "text": "Low", "kind": "warning", "new": True},
     ]
-    assert game.drain_alerts() == []
+    game.player_data["game_clock"]["elapsed_seconds"] = 125 + main.LOG_NEW_SECONDS
+    assert [line["new"] for line in game.view()["log"]] == [True, False]
+
+
+def test_the_station_log_keeps_only_its_newest_lines():
+    game = new_game()
+    for number in range(main.MAX_LOG_LINES + 5):
+        game.alert("Line", str(number))
+    log = game.player_data["log"]
+    assert (len(log), log[0]["text"], log[-1]["text"]) == (main.MAX_LOG_LINES, "5", str(main.MAX_LOG_LINES + 4))
+
+
+def test_the_status_bar_shows_the_players_health():
+    game = new_game()
+    assert (game.view()["status"]["health"], game.view()["status"]["health_color"]) == (100, "green")
+    game.player_data["limbs"] = {limb: 30 for limb in game.player_data["limbs"]}
+    assert (game.view()["status"]["health"], game.view()["status"]["health_color"]) == (30, "red")
 
 
 def test_the_clock_waits_a_second_between_ticks():
     game = new_game()
-    before = game.player_data["station_power"]["battery_level"]
     game.player_data["game_clock"]["last_real_time"] = time.time()
     game.tick()
-    assert game.player_data["station_power"]["battery_level"] == before
+    assert game.player_data["game_clock"]["elapsed_seconds"] == 0
+
+
+def test_the_shift_stands_still_while_nobody_is_playing(monkeypatch):
+    monkeypatch.setattr(game_clock, "MAX_TICK_SECONDS", 5.0)
+    game = new_game("Administration", "Captain", CAREER)
+    credits = game.player_data["credits"]
+    tick_after(game, 24 * 60 * 60)
+    assert game.player_data["game_clock"]["elapsed_seconds"] == 5.0
+    assert game.player_data["credits"] == credits
 
 
 def power_after_a_minute(solar, mode, battery=50.0):
+    """The battery after a minute with the Combustion Engine stopped, the systems at mode's levels."""
     game = new_game()
+    game.player_data["engine"]["running"] = False
     power = game.player_data["station_power"]
-    power.update(solar_charging=solar, power_mode=mode, battery_level=battery)
-    due_tick(game)
-    game.tick()
+    power.update(solar_charging=solar, power_mode=mode, battery_level=battery,
+                 system_levels=dict(POWER_MODE_LEVELS[mode]))
+    tick_after(game)
     return game, power["battery_level"]
 
 
-def test_power_modes_with_the_solar_array_on():
-    assert power_after_a_minute(True, "high")[1] == pytest.approx(49.5, abs=0.01)
-    assert power_after_a_minute(True, "balanced")[1] == 50.0
-    assert power_after_a_minute(True, "emergency")[1] == pytest.approx(50 + 1.5 * (3 - 0.63), abs=0.02)
+def test_solar_alone_holds_power_saving_and_emergency_and_loses_in_balanced_and_high():
+    assert power_after_a_minute(True, "low")[1] == pytest.approx(50 + 0.7 - 0.63, abs=0.01)
+    assert power_after_a_minute(True, "emergency")[1] == pytest.approx(50 + 0.7 - 0.64, abs=0.01)
+    assert power_after_a_minute(True, "balanced")[1] == pytest.approx(50 + 0.7 - 0.99, abs=0.01)
+    assert power_after_a_minute(True, "high")[1] == pytest.approx(50 + 0.7 - 1.30, abs=0.01)
 
 
 def test_without_solar_the_systems_drain_the_battery():
-    assert power_after_a_minute(False, "balanced")[1] == pytest.approx(50 - 0.96, abs=0.01)
+    assert power_after_a_minute(False, "balanced")[1] == pytest.approx(50 - 0.99, abs=0.01)
 
 
 def test_falling_through_the_critical_level_warns_once():
     game, level = power_after_a_minute(False, "balanced", battery=10.5)
     assert 0 < level <= 10
     assert reports(game) == ["Low Power Warning"]
+    assert message_texts(game) == [LOW_POWER_ALERT]
+    tick_after(game)
+    assert reports(game).count("Low Power Warning") == 1
 
 
 def test_running_the_battery_flat_is_an_outage():
     game, level = power_after_a_minute(False, "balanced", battery=0.5)
     assert level == 0
     assert reports(game) == ["Power Outage"]
+    assert message_texts(game)[0] == POWER_OUTAGE_ALERT
     assert game.player_data["notes"][-1]["text"].startswith("CRITICAL: Station suffered complete power failure")
+    game._tick_power(600)
+    assert reports(game).count("Power Outage") == 1
 
 
-def test_failing_life_support_warns_then_kills():
-    game = at(new_game(), 0, 0)
+def test_failing_life_support_lets_the_air_run_down_then_warns_then_kills():
+    game = on_tile(new_game(), 0, 0)
     game.player_data["station_power"]["system_levels"]["life_support"] = 0
     game.player_data["station_power"]["solar_charging"] = True
-    due_tick(game)
-    game.tick()
+    tick_after(game, 600)
+    assert "Oxygen Warning" not in reports(game)
+    tick_after(game)
     assert "Oxygen Warning" in reports(game)
     assert game.player_data["notes"][-1]["text"] == "Suffered 30% oxygen damage due to life support failure."
     game.player_data["damage"]["oxygen"] = 95
     game.open_panel("character_sheet")
-    due_tick(game)
-    game.tick()
+    tick_after(game)
     assert OXYGEN_DEATH_TITLE in reports(game)
     assert game.player_data["damage"]["oxygen"] == POST_DEATH_OXYGEN
     assert game.player_data["location"] == QUARTERS_LOCATION
@@ -306,42 +332,38 @@ def test_a_failing_subsystem_does_not_stop_the_others(monkeypatch, caplog):
 
     monkeypatch.setattr(main, "apply_alcohol_tick", broken)
     game, level = power_after_a_minute(False, "balanced")
-    assert level < 50
+    assert level == pytest.approx(49.01)
     assert "Master clock subsystem failed" in caplog.text
 
 
 def test_npcs_move_at_most_every_few_seconds(monkeypatch):
     moves = []
-    monkeypatch.setattr(main, "roll_departures", lambda crew: moves.append("departures"))
-    monkeypatch.setattr(main, "step_wanderers", lambda game: moves.append("wander"))
+    monkeypatch.setattr(main, "step_crew", lambda game: moves.append("crew"))
     game = new_game()
-    due_tick(game)
-    game.tick()
-    due_tick(game)
-    game.tick()
-    assert moves == ["departures", "wander"]
+    tick_after(game)
+    tick_after(game)
+    assert moves == ["crew"]
     game.player_data["game_clock"]["last_npc_move_real"] -= main.NPC_MOVE_INTERVAL_SECONDS
-    due_tick(game)
-    game.tick()
-    assert moves == ["departures", "wander"] * 2
+    tick_after(game)
+    assert moves == ["crew"] * 2
 
 
 def test_a_jailed_player_is_kept_in_security():
-    game = at(new_game(), 0, 0)
+    game = on_tile(new_game(), 0, 0)
     game.player_data["in_jail"] = True
     game.view()
     assert game.location_key() == SECURITY_KEY
 
 
 def test_a_location_off_the_map_goes_back_to_quarters():
-    game = at(new_game(), 40, 40)
-    view = game.view()
+    game = on_tile(new_game(), 40, 40)
+    game.view()
     assert game.player_data["location"] == QUARTERS_LOCATION
-    assert view["alerts"] == [{"title": "Error", "message": "Invalid location!", "kind": "error"}]
+    assert drain(game) == [{"title": "Error", "message": "Invalid location!", "kind": "error"}]
 
 
 def test_arrest_and_release_move_the_player():
-    game = at(new_game(), 0, 0)
+    game = on_tile(new_game(), 0, 0)
     game.handle_player_arrest("Got you.", show_message=False)
     assert game.location_key() == SECURITY_KEY
     assert game._messages == []
@@ -351,32 +373,26 @@ def test_arrest_and_release_move_the_player():
 
 
 def test_a_jailed_player_cannot_walk():
-    game = at(new_game(), 0, 0)
+    game = on_tile(new_game(), 0, 0)
     game.player_data.update(in_jail=True, jail_release_at_seconds=90)
     game.move_direction("north")
     assert game.player_data["location"] == {"x": 0, "y": 0}
-    assert messages(game) == ["You are in jail. Time remaining: 1m 30s."]
-
-
-def drunk_dice(monkeypatch, *, stumble, fall):
-    rolls = iter([0.0 if stumble else 0.99, 0.0 if fall else 0.99])
-    monkeypatch.setattr(player_movement, "random", SimpleNamespace(
-        random=lambda: next(rolls), choice=lambda limbs: limbs[0], randint=lambda low, high: high))
+    assert message_texts(game) == ["You are in jail. Time remaining: 1m 30s."]
 
 
 def test_a_drunk_player_can_fall_and_get_hurt(monkeypatch):
-    drunk_dice(monkeypatch, stumble=True, fall=True)
-    game = at(quiet(new_game()), 0, 0)
+    fix_random(monkeypatch, player_movement, roll=0.0)
+    game = on_tile(quiet(new_game()), 0, 0)
     game.player_data["alcohol_percent"] = 30
     game.move_direction("north")
     assert game.player_data["location"] == {"x": 0, "y": 0}
     assert game.player_data["limbs"]["head"] == 95
-    assert messages(game) == ["You stumble and fall hard!\n\nYour Head took 5% blunt damage and is now at 95%."]
+    assert message_texts(game) == ["You stumble and fall hard!\n\nYour Head took 5% blunt damage and is now at 95%."]
 
 
 def test_a_drunk_player_can_stumble_and_stay_put(monkeypatch):
-    drunk_dice(monkeypatch, stumble=True, fall=True)
-    game = at(quiet(new_game()), 0, 0)
+    fix_random(monkeypatch, player_movement, roll=0.0)
+    game = on_tile(quiet(new_game()), 0, 0)
     game.player_data["alcohol_percent"] = 10
     game.move_direction("north")
     assert game.player_data["location"] == {"x": 0, "y": 0}
@@ -384,8 +400,8 @@ def test_a_drunk_player_can_stumble_and_stay_put(monkeypatch):
 
 
 def test_a_drunk_player_who_keeps_their_feet_moves(monkeypatch):
-    drunk_dice(monkeypatch, stumble=False, fall=False)
-    game = at(quiet(new_game()), 0, 0)
+    fix_random(monkeypatch, player_movement, roll=0.99)
+    game = on_tile(quiet(new_game()), 0, 0)
     game.player_data["alcohol_percent"] = 30
     game.move_direction("north")
     assert game.player_data["location"] == {"x": 1, "y": 0}
@@ -396,7 +412,7 @@ def test_a_hallway_event_that_jails_the_player_ends_the_move(monkeypatch):
         game.player_data["in_jail"] = True
 
     monkeypatch.setattr(player_movement, "maybe_trigger_hallway_event", arrested)
-    game = at(quiet(new_game()), 0, 0)
+    game = on_tile(quiet(new_game()), 0, 0)
     passerby = game.station_crew[-1]
     passerby["location"] = {"x": 1, "y": 0}
     game.move_direction("north")
@@ -406,7 +422,7 @@ def test_a_hallway_event_that_jails_the_player_ends_the_move(monkeypatch):
 def meet(game, npc):
     """Put npc off duty on the tile north of the player at (0, 0), then step onto it."""
     npc.update(on_duty=False, room_visit_remaining=0, location={"x": 1, "y": 0})
-    at(game, 0, 0).move_direction("north")
+    on_tile(game, 0, 0).move_direction("north")
 
 
 def never_refuse(monkeypatch):
@@ -417,7 +433,7 @@ def test_someone_passing_in_the_hall_is_mentioned():
     game = quiet(new_game())
     doctor = crew(game, "Doctor")
     meet(game, doctor)
-    assert messages(game) == [f"{doctor['name']} (Doctor) passes you in the hall."]
+    assert message_texts(game) == [f"{doctor['name']} (Doctor) passes you in the hall."]
 
 
 def test_a_guard_collects_the_players_fine(monkeypatch):
@@ -445,7 +461,7 @@ def test_a_guard_arrests_a_wanted_player_after_collecting_their_fine(monkeypatch
     guard = crew(game, "Security Guard")
     meet(game, guard)
     assert reports(game) == ["Fine Paid", "Arrested"]
-    assert game._messages[-1][2] == f"{guard['name']} stops you in the hall. You are under arrest!\nCharge: Theft"
+    assert game._messages[-1][1] == f"{guard['name']} stops you in the hall. You are under arrest!\nCharge: Theft"
 
 
 def test_a_security_player_collects_a_passing_fine(monkeypatch):
@@ -469,7 +485,7 @@ def test_a_security_player_stops_a_wanted_passerby():
 
 def test_a_security_player_scans_a_room_on_entry(monkeypatch):
     never_refuse(monkeypatch)
-    game = at(quiet(new_game("Security", "Security Guard")), 0, 3)
+    game = on_tile(quiet(new_game("Security", "Security Guard")), 0, 3)
     bartender = crew(game, "Bartender")
     bartender.update(fine_amount=20, fine_reason="Noise")
     doctor = crew(game, "Doctor")

@@ -1,0 +1,90 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set c = facts.cargo %}
+{% block page %}
+<p>
+  The Cargo Bay is off the Northeast Hallway, next to the Mining Bay. It is where the station buys from Central Command
+  and sells to it.
+</p>
+
+<h2>For visitors</h2>
+<p>Both counters are open while the Quartermaster is on duty.</p>
+<ul>
+  <li><b>Buy Supplies</b>: the supply counter sells supplies on the spot, at {{ c.COUNTER_MARKUP }} times what the
+    Quartermaster pays for them.</li>
+  <li><b>Order Console</b>: request something from Central Command. It is open whether or not the Quartermaster is in,
+    and your PDA has one too. See below.</li>
+  <li><b>Collect Your Order</b>: takes what you requested off the conveyor once its pod has docked.</li>
+  <li><b>Export Counter</b>: a <b>Sell</b> button for each kind of thing you carry that the counter takes, and
+    <b>Sell All</b> for everything at once, duty items included. This is where a Miner sells ore, and the ore goes up
+    to the station stores. See {{ w.link("Station Stores") }}.</li>
+</ul>
+
+<h2>The Order Console</h2>
+<p>
+  Everyone but the Quartermaster can use it, from the Cargo Bay's room options or from the PDA, so a request can go in
+  from anywhere on the station. See {{ w.link("PDA") }}.
+</p>
+<ul>
+  <li>Pick a supply or a canister of gas and press <b>Request</b>. It costs the crew price in the table below, the same
+    as over the counter. Nothing is charged yet.</li>
+  <li>The Quartermaster answers {{ c.REQUEST_DECISION_SECONDS_RANGE[0] }}-{{ c.REQUEST_DECISION_SECONDS_RANGE[1] }}
+    seconds later, in the station log and on your PDA. If you can pay, they approve it, charge you and order it, and it
+    docks {{ c.CARGO_DELIVERY_SECONDS }} seconds after that. If you can't, they deny it and charge nothing.</li>
+  <li>A Quartermaster who is in jail, too hurt to work, away from the bay or cleared out by a hazard answers nothing
+    until they are back. The
+    console says why your request is waiting.</li>
+  <li>The console lists your requests: waiting on the Quartermaster, on its way with the time left, ready to collect,
+    or denied with the reason.</li>
+  <li>What you requested waits at the Cargo Bay for you. Press <b>Collect Your Order</b> there.</li>
+  <li>A canister of gas goes on to Atmospherics instead. See <b>Dangerous gas</b> below.</li>
+</ul>
+
+<h2>The Cargo Station</h2>
+<p>Quartermasters, the Head of Personnel and the Captain can work it.</p>
+<ul>
+  <li><b>Order Supplies</b>: the Quartermaster's own Order Console. Each order costs the Quartermaster's price and comes
+    up in a supply pod {{ c.CARGO_DELIVERY_SECONDS }} seconds later.</li>
+  <li><b>Supply Requests</b>, on the same console: the departments' requests on your Duties board. <b>Approve</b>
+    orders the supply, and you still collect it and deliver it for the reward. <b>Deny</b> turns it down, which counts
+    as a duty done. See {{ w.link("Quartermaster") }}.</li>
+  <li><b>Collect Deliveries</b>: takes everything you ordered that has docked off the conveyor.</li>
+  <li><b>Export Counter</b>: the same counter visitors use, open to you whether or not anyone else is in.</li>
+</ul>
+<table class="wiki-table">
+  <thead><tr><th>Supply</th><th>Quartermaster's price</th><th>Crew price</th></tr></thead>
+  <tbody>
+    {% for name, order_price, crew_price in facts.cargo_orders %}
+    <tr><td>{{ name }}</td><td>{{ order_price }}</td><td>{{ crew_price }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>Canisters of gas are only sold through the Order Console, not over the counter.</p>
+
+<h2>Dangerous gas</h2>
+<ul>
+  <li>A full canister of {{ facts.gases.DANGEROUS_GASES|join(", ") }} can be ordered on either Order Console. When its
+    pod docks it goes down the tube into an empty slot on the Atmospherics Canister Rack. See
+    {{ w.link("Atmospherics") }}.</li>
+  <li>With no empty slot on the rack, the canister waits at the Cargo Bay, and the console says to clear a slot. It goes
+    down the tube as soon as one is free.</li>
+  <li>Every order of dangerous gas goes in the Incident Log, with who ordered it and when. The Quartermaster never
+    refuses one for being dangerous, but your first {{ c.DANGEROUS_ORDERS_ALLOWED }} in a shift are all you get for free: each one
+    after that has a {{ (c.ORDER_ALERT_CHANCE * 100)|round|int }}% chance of putting out a warrant for you, for stockpiling dangerous gas.
+    See {{ w.link("Security and Jail") }}.</li>
+</ul>
+
+<h2>Exports</h2>
+<table class="wiki-table">
+  <thead><tr><th>What</th><th>Sells for</th></tr></thead>
+  <tbody>
+    {% for name, value in facts.ore_values %}
+    <tr><td>{{ name }}</td><td>{{ value }}</td></tr>
+    {% endfor %}
+    <tr><td>Produce from {{ w.link("Botany") }}: {{ facts.export_produce|join(", ") }}</td>
+      <td>{{ c.PRODUCE_EXPORT_VALUE }}</td></tr>
+    <tr><td>Mutant produce</td><td>{{ c.MUTANT_EXPORT_VALUE }}</td></tr>
+    <tr><td>An analysed artifact from {{ w.link("Research") }}</td><td>{{ facts.artifacts.EXPORT_VALUE }}</td></tr>
+  </tbody>
+</table>
+{% endblock %}

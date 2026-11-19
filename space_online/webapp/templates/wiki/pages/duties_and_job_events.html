@@ -1,0 +1,70 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set e = facts.events %}
+{% set d = facts.duties %}
+{% block page %}
+<h2>Job events</h2>
+<p>
+  Every {{ facts.rounds.JOB_EVENT_INTERVAL_RANGE[0] // 60 }} to {{ facts.rounds.JOB_EVENT_INTERVAL_RANGE[1] // 60 }}
+  minutes your job brings you something to do, wherever you are on the station. It goes down in the station log.
+  What it is depends on your job:
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Job</th><th>Job events</th></tr></thead>
+  <tbody>
+    <tr><td>{{ w.link("Staff Assistant") }}</td><td>Job requests from department crew</td></tr>
+    <tr><td>{{ w.link("Engineer") }}</td><td>Solar outages and system faults</td></tr>
+    <tr><td>{{ w.link("Security Guard") }}</td><td>Witnessing a crime</td></tr>
+    <tr><td>{{ w.link("Doctor") }}</td><td>Patients hurt in accidents</td></tr>
+    <tr><td>{{ w.link("Bartender") }}</td><td>Drink orders, and requests at the service window</td></tr>
+    <tr><td>{{ w.link("Chef") }}</td><td>Food orders, and requests at the service window</td></tr>
+    <tr><td>{{ w.link("Botanist") }}</td><td>Crop requests from the Bartender</td></tr>
+    <tr><td>{{ w.link("Scientist") }}</td><td>From the lab you are posted to: compound requests in Chemistry,
+      artifacts from Central Command in the Research Lab, and gas requests and bomb tests in Atmospherics</td></tr>
+    <tr><td>{{ w.link("Miner") }}</td><td>Ore requests from the crew</td></tr>
+    <tr><td>{{ w.link("Quartermaster") }}</td><td>Supply requests from the departments</td></tr>
+    <tr><td>{{ w.link("Head of Personnel") }}</td><td>Job requests from the crew</td></tr>
+    <tr><td>{{ w.link("Captain") }}</td><td>Command requests to approve or deny</td></tr>
+  </tbody>
+</table>
+
+<h2>Duties</h2>
+<p>
+  Most job events put a duty on your board. The <b>Duties</b> button is on every screen, shows how many are open, and
+  opens what is waiting and how long each has left. Job events and duties go to the station log, not your PDA. You can have {{ d.MAX_OPEN_DUTIES }} at once, and no new one comes in while the board is
+  full. A duty left for {{ d.DUTY_EXPIRY_SECONDS // 60 }} minutes is missed, except a Crop Request for a plant still
+  growing. See {{ w.link("Botanist") }}.
+</p>
+<ul>
+  <li><b>Deliver</b>: bring an item to a crew member in their room and press <b>Deliver</b>. The button shows while
+    they're on duty.</li>
+  <li><b>Help</b>: go to a crew member's room and press the <b>Help</b> button while they're on duty.</li>
+  <li><b>Serve</b>: the Bartender serves a mixed drink from stock at the Bartender Station, and the Chef serves a
+    dish from stock at the Chef Station.</li>
+  <li><b>Treat</b>: the Doctor treats a hurt crew member from Crew Vitals.</li>
+  <li><b>Analyse</b>: the Scientist files a correct analysis of an artifact.</li>
+  <li><b>Bomb Test</b>: the Scientist runs a transfer valve bomb of the size asked for on the Test Range in
+    Atmospherics.</li>
+  <li><b>Command Request</b>: the Captain approves or denies it with the buttons on the Duties panel.</li>
+</ul>
+<p>
+  Engineers, Security Guards and the Head of Personnel have no board. Their work counts as a duty done when they
+  repair a system or fix a hazard, make an arrest, or settle a request.
+</p>
+
+<h2>Rewards</h2>
+<ul>
+  <li>Staff Assistant duties pay {{ e.ERRAND_MIN_REWARD }}-{{ e.ERRAND_MAX_REWARD }} credits.</li>
+  <li>Crop requests pay the Botanist {{ e.CROP_REQUEST_MIN_REWARD }}-{{ e.CROP_REQUEST_MAX_REWARD }} credits.</li>
+  <li>Drink and food orders pay the menu price.</li>
+  <li>Compound, ore, supply and gas requests pay {{ e.ITEM_REQUEST_MIN_REWARD }}-{{ e.ITEM_REQUEST_MAX_REWARD }}
+    credits.</li>
+  <li>A bomb test pays the range bounty for its size:
+    {% for size, credits in facts.bombs.RANGE_BOUNTY.items() %}{{ size }} {{ credits }}{{ ", " if not loop.last }}{% endfor %}
+    credits.</li>
+  <li>An artifact analysis pays {{ facts.research.ANALYSIS_REWARD }} credits.</li>
+  <li>Requests at the service window are favours between the Bar and the Kitchen and pay nothing.</li>
+  <li>Patients pay the cost of their treatment, or what they have, if that is less.</li>
+</ul>
+<p>The shift report says how many duties you did and how many you missed.</p>
+{% endblock %}

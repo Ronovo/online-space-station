@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Hands</h2>
+{{ ui.panel_header("Hands") }}
 {{ ui.hand_rows(p.hands, can_equip=True) }}
 <h3>Equippable Items</h3>
 <div class="listbox" data-scroll-key="hands">
@@ -9,4 +9,3 @@
     <div class="list-empty">You have no equippable items.</div>
   {% endfor %}
 </div>
-<div class="button-row">{{ ui.close_btn() }}</div>

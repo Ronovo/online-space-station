@@ -4,7 +4,8 @@
 <h2>Layout</h2>
 <p>
   The station is a hollow square ring of hallways. Your Quarters are at the hallway junction, and these rooms branch
-  off the ring: {{ facts.rooms|join(", ") }}. The Station Map in your locker shows where each one is.
+  off the hallways: {{ facts.rooms|join(", ") }}. Atmospherics, the Chemistry Lab and the Research Lab are the north, east and south doors of the
+  Science Hall, off the east side of the ring. The Station Map in your locker shows where each one is.
 </p>
 
 <h2>Getting around</h2>
@@ -12,7 +13,9 @@
   <li>In a hallway, the <b>Go North</b>, <b>Go South</b>, <b>Go East</b> and <b>Go West</b> buttons move you one tile. A
     room's door shows up as a button on the hallway tile in front of it.</li>
   <li>A locked door keeps people out of a room, but never traps anyone inside. Whoever can work a room's station can
-    lock and unlock its door.</li>
+    lock and unlock its door. Locks only hold while the Security Systems have power. See {{ w.link("Power") }}.</li>
+  <li>With a {{ facts.hack_tools|join(" and ") }} on you, a locked door offers to be forced. Forcing a door that
+    isn't yours to open puts a warrant out for you. See {{ w.link("Security and Jail") }}.</li>
   <li>If you've been drinking you may stumble and stay put, or fall and get hurt. See {{ w.link("Health") }}.</li>
 </ul>
 
@@ -26,9 +29,11 @@
 
 <h2>Your Quarters</h2>
 <ul>
-  <li><b>Bed</b>: confirms your game is saved.</li>
+  <li><b>Rest in Bed</b>: every hurt limb mends by {{ facts.rest_per_minute }}% a minute for as long as you stay
+    in bed. Getting up or leaving the room ends it.</li>
   <li><b>Storage Locker</b>: store items and take them back out. See {{ w.link("Items and Hands") }}.</li>
-  <li><b>Computer</b>: the {{ w.link("Stock Market") }}.</li>
+  <li><b>Computer</b>: the {{ w.link("Stock Market") }}, and your files, which you can read, write and edit here.
+    See {{ w.link("PDA") }}.</li>
   <li><b>Door</b>: back out to the hallway.</li>
 </ul>
 
@@ -36,8 +41,18 @@
 <p>
   Each step along a hallway has a {{ (facts.events.HALLWAY_EVENT_CHANCE * 100)|round|int }}% chance of an event. It can
   be good (found credits, a supply crate, a market tip), neutral (announcements, station bots, a misbehaving vending
-  machine), bad (slips, burns, falling debris) or a job event for your role. See
-  {{ w.link("Errands and Job Events") }}. You'll also be told when crew pass you in the hall.
+  machine) or bad (slips, burns, falling debris). You'll also be told when crew pass you in the hall. Your job's own
+  events come on the clock, not from walking. See {{ w.link("Duties and Job Events") }}.
+</p>
+<p>
+  An item you find, from a supply crate or a vending machine, is left on the floor where you are. Pick it up from
+  <b>On the Floor Here</b>, just above the navigation.
+</p>
+
+<h2>Hazards</h2>
+<p>
+  A room can have a hull breach, a fire or bad wiring. It hurts you while you are in it and clears its crew out until
+  someone fixes it. See {{ w.link("Hazards") }}.
 </p>
 
 <h2>Lighting</h2>

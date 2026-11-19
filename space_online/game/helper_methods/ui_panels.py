@@ -1,9 +1,8 @@
-"""Server-side UI state for the web client: panel stack, choices, and alerts.
+"""Server-side UI state for the web client: the panel stack and choices.
 
 The browser only renders what these structures describe. Panels are
-full-screen overlays (only the top of the stack is visible), choices are
-modal button prompts the player must answer, and alerts are one-shot
-messages returned with the next response.
+overlays on the screen (only the top of the stack is visible) and choices are
+modal button prompts the player must answer.
 """
 
 import time
@@ -12,17 +11,17 @@ PANELS = {}
 PANEL_ACTIONS = {}
 CHOICE_HANDLERS = {}
 
-_KIND_RANK = {"info": 0, "warning": 1, "error": 2}
-
-
 def default_ui_state():
     return {"room_mode": "menu", "panels": [], "choices": []}
 
 
-def register_panel(panel_type, title):
-    """Register context_fn(game, state) -> dict, or None to auto-close the panel."""
+def register_panel(panel_type, title, template=None):
+    """Register context_fn(game, state) -> dict, or None to auto-close the panel.
+
+    template names the panel's template when several panel types share one.
+    """
     def decorator(context_fn):
-        PANELS[panel_type] = {"title": title, "context": context_fn}
+        PANELS[panel_type] = {"title": title, "context": context_fn, "template": template or panel_type}
         return context_fn
     return decorator
 
@@ -62,19 +61,3 @@ def current_feedback(state):
         return None
     return feedback
 
-
-def coalesce_reports(reports):
-    """Merge reported (title, message, kind) tuples into one alert."""
-    if len(reports) == 1:
-        title, message, kind = reports[0]
-        return {"title": title, "message": message, "kind": kind}
-
-    unique_titles = {title for title, _, _ in reports}
-    max_kind = max(reports, key=lambda r: _KIND_RANK.get(r[2], 0))[2]
-    if len(unique_titles) == 1:
-        title = next(iter(unique_titles))
-        body = "\n\n".join(message for _, message, _ in reports)
-    else:
-        title = "Station Alerts"
-        body = "\n\n".join(f"[{t}] {m}" for t, m, _ in reports)
-    return {"title": title, "message": body, "kind": max_kind}

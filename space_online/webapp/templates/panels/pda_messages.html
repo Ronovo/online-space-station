@@ -1,0 +1,9 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("PDA Messages", "Back to PDA") }}
+<div class="text-block" data-scroll-key="pda-messages">
+  {% for message in p.messages %}
+    <p class="note{% if message.new %} pda-new{% endif %}"><span class="note-time">{{ message.time }}, {{ message.subject }}{% if message.new %} (new){% endif %}</span><br>{{ message.text }}</p>
+  {% else %}
+    <p>No messages yet. Your job will send word here when it needs you.</p>
+  {% endfor %}
+</div>

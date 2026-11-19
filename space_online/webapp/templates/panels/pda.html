@@ -1,0 +1,12 @@
+{% import "game/_ui.html" as ui %}
+<h2>PDA</h2>
+<p class="center">{{ p.name }}, {{ p.job }}</p>
+<div class="stack">
+  {{ ui.btn("Messages (" ~ p.unread ~ " new)" if p.unread else "Messages", "panel.messages", cls="btn-wide") }}
+  {% if p.app %}{{ ui.btn(p.app, "panel.app", cls="btn-wide") }}{% endif %}
+  {% if p.orders %}{{ ui.btn("Order Console", "panel.orders", cls="btn-wide") }}{% endif %}
+  {{ ui.btn("Stocks", "panel.stocks", cls="btn-wide") }}
+  {{ ui.btn("Files", "panel.files", cls="btn-wide") }}
+  {{ ui.close_btn("Close", "btn-wide") }}
+</div>
+<p class="center small muted">To scan something related to your job, use the PDA on the object.</p>

@@ -1,0 +1,60 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Combustion Engine", "Close Panel") }}
+
+<section class="eng-section">
+  <h3>Readouts</h3>
+  <p class="result">Chamber: {{ p.gauge }}</p>
+  <p class="center muted">Rated to {{ p.rated }} kPa. The hot loop's limit is {{ p.hot_limit }} K.</p>
+  <p>Hot loop: {{ "%.0f"|format(p.hot) }} K &nbsp; Cold loop: {{ "%.0f"|format(p.cold) }} K &nbsp; Difference: {{ "%.0f"|format(p.hot - p.cold) }} K</p>
+  <p style="color: {{ '#00FF00' if p.running else '#FF0000' }}">{{ "RUNNING" if p.running else "STOPPED" }} &nbsp; Output: +{{ "%.2f"|format(p.output) }}% per minute</p>
+  <div class="bar-line">
+    <b class="bar-label">Damage</b>
+    <div class="bar small"><div class="bar-fill" style="width: {{ p.damage }}%; background: {{ '#FF0000' if p.damage >= 80 else '#FFFF00' if p.damage >= 50 else '#00FF00' }}"></div></div>
+    <b>{{ "%.0f"|format(p.damage) }}%</b>
+  </div>
+  <p class="italic">{{ p.hint }}</p>
+</section>
+
+<section class="eng-section">
+  <h3>Canister Bay</h3>
+  {% for slot in p.slots %}
+  <div class="system-row">
+    {% if slot %}
+      <span><b>{{ slot.label }}</b>{% for key, name in p.lines if key == slot.port %} (on {{ name }}){% endfor %}: {{ slot.gauge }}</span>
+      <span>
+        {% for key, name in p.lines %}
+          {{ ui.btn("Connect as " ~ name, "panel.set_port", {"index": slot.index, "port": key}, "btn-toggle btn-small" ~ (" active" if slot.port == key else "")) }}
+        {% endfor %}
+        {{ ui.btn("Disconnect", "panel.set_port", {"index": slot.index, "port": ""}, "btn-small") }}
+        {{ ui.btn("Send to Atmospherics", "panel.send_to_atmospherics", {"index": slot.index}, "btn-small") }}
+      </span>
+    {% else %}
+      <span>Slot {{ loop.index }}: empty</span>
+    {% endif %}
+  </div>
+  {% endfor %}
+</section>
+
+<section class="eng-section">
+  <h3>Controls</h3>
+  {% for setting in p.settings %}
+  <div class="slider-row">
+    <label for="engine-{{ setting.key }}">{{ setting.label }}</label>
+    <input id="engine-{{ setting.key }}" type="range" min="0" max="{{ setting.max }}" step="1" value="{{ setting.value }}"
+           data-action="panel.set_setting" data-args='{{ {"setting": setting.key}|tojson }}'>
+    <output for="engine-{{ setting.key }}">{{ setting.value }}</output>
+  </div>
+  {% endfor %}
+  {% if p.coolant_fault %}
+    <p style="color: #FF9900">The coolant line is cut. No coolant flows whatever the slider says.</p>
+  {% endif %}
+  <div class="button-row">
+    {{ ui.btn("Ignite", "panel.ignite", cls="btn-primary") }}
+    {{ ui.btn("Shut Down", "panel.shut_down") }}
+    {{ ui.btn("Emergency Vent", "panel.emergency_vent") }}
+    {% if p.coolant_fault %}{{ ui.btn("Repair Coolant Line", "panel.repair_coolant_line") }}{% endif %}
+    {% if p.repairable %}{{ ui.btn("Repair Chamber", "panel.repair_chamber") }}{% endif %}
+  </div>
+</section>
+
+{{ ui.feedback(p.feedback) }}

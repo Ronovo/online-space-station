@@ -1,4 +1,11 @@
 {% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Stock Market", "Back to PDA" if p.read_only else "Back to Computer") }}
+<div class="stat-row">
+  <div class="stat"><span class="stat-label">Cycle</span><span class="stat-value">{{ p.cycle }}</span></div>
+  <div class="stat"><span class="stat-label">Market</span><span class="stat-value" style="color: {{ p.timer.color }}">{{ p.timer.text }}</span></div>
+  <div class="stat"><span class="stat-label">Credits</span><span class="stat-value">{{ "%.2f"|format(p.credits) }}</span></div>
+  <div class="stat"><span class="stat-label">Portfolio</span><span class="stat-value">{{ "%.2f"|format(p.portfolio_value) }}</span></div>
+</div>
 <div class="market">
   <div class="market-left">
     {% for group, label, options in p.filter_groups %}
@@ -10,69 +17,74 @@
     </div>
     {% endfor %}
 
-    <div class="listbox short" data-scroll-key="companies">
-      {% for name in p.companies %}
-        {{ ui.row(name, "panel.select", {"name": name}, name == p.selected) }}
+    <div class="listbox company-list" data-scroll-key="companies">
+      {% for company in p.companies %}
+      <button type="button" class="list-row company-row{% if company.name == p.selected %} selected{% endif %}" data-action="panel.select" data-args='{{ {"name": company.name}|tojson }}'>
+        <span class="company-name">{{ company.name }}{% if company.owned %} <span class="company-owned">x{{ company.owned }}</span>{% endif %}</span>
+        <span class="company-price">{{ "%.2f"|format(company.price) }}</span>
+        <span class="company-change trend-{{ company.trend }}">{{ "%+.1f"|format(company.change_pct) }}%</span>
+      </button>
+      {% else %}
+      <div class="list-empty">No companies match these filters.</div>
       {% endfor %}
     </div>
-
-    {% if p.detail %}
-    <form class="trade-form">
-      <div class="trade-line">
-        <label for="shares-input">Shares:</label>
-        <input id="shares-input" name="shares" type="number" min="1" step="1" value="1" list="share-options"
-               data-share-input data-price="{{ p.detail.price }}" data-credits="{{ p.credits }}" data-owned="{{ p.detail.owned }}">
-        <datalist id="share-options">{% for n in p.share_options %}<option value="{{ n }}">{% endfor %}</datalist>
-        <span data-share-total>Total: 0.00</span>
-      </div>
-      <div class="trade-line">
-        <button type="button" class="btn btn-small" data-set-input="shares-input" data-value="{{ p.detail.max_buy }}">Max Buy ({{ p.detail.max_buy }})</button>
-        <button type="button" class="btn btn-small" data-set-input="shares-input" data-value="{{ p.detail.max_sell }}">Max Sell ({{ p.detail.max_sell }})</button>
-      </div>
-      <div class="trade-line">
-        <button type="button" class="btn btn-buy" data-action="panel.buy" data-args="{}" data-share-buy>Buy</button>
-        <button type="button" class="btn btn-sell" data-action="panel.sell" data-args="{}" data-share-sell>Sell</button>
-      </div>
-    </form>
-    {% endif %}
-
-    <div class="stack">
-      {{ ui.btn("View Trade History", "panel.history", cls="btn-wide") }}
-      {{ ui.close_btn("Back to Computer", "btn-wide") }}
-    </div>
+    <div class="stack">{{ ui.btn("View Trade History", "panel.history", cls="btn-wide") }}</div>
   </div>
 
   <div class="market-right">
-    <div class="market-header">
-      <div>
-        <p>Cycle: {{ p.cycle }}</p>
-        <p style="color: {{ p.timer.color }}">{{ p.timer.text }}</p>
-        <p>Credits: {{ "%.2f"|format(p.credits) }}</p>
-      </div>
-      {% if p.detail %}
-      <div class="company-info">
-        <h2>{{ p.detail.name }}</h2>
-        <p>Current Price: {{ "%.2f"|format(p.detail.price) }}
-          <span style="color: {{ p.detail.change_color }}">Change: {{ "%.2f"|format(p.detail.change) }} ({{ "%.2f"|format(p.detail.change_pct) }}%)</span></p>
-        <p>Shares Owned: {{ p.detail.owned }} &nbsp; Total Value: {{ "%.2f"|format(p.detail.total_value) }}</p>
-      </div>
-      {% endif %}
-    </div>
+    <fieldset class="group">
+      <legend>Market News</legend>
+      {% for item in p.news %}
+      <p class="news-item trend-{{ item.direction }}">{{ item.text }}</p>
+      {% else %}
+      <p class="list-empty">No news this cycle.</p>
+      {% endfor %}
+      <p class="small muted">Not every headline is true. The ones that are move the price at the next update.</p>
+    </fieldset>
+
     {% if p.detail %}
-    {% set c = p.detail.chart %}
-    <svg class="price-chart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="{{ c.title }}">
-      <text x="{{ c.width / 2 }}" y="18" text-anchor="middle" class="chart-title">{{ c.title }}</text>
-      <rect x="{{ c.left }}" y="{{ c.top }}" width="{{ c.right - c.left }}" height="{{ c.bottom - c.top }}" class="chart-frame"/>
-      {% for tick in c.y_ticks %}
-      <text x="{{ c.left - 6 }}" y="{{ tick.y + 4 }}" text-anchor="end" class="chart-tick">{{ tick.label }}</text>
-      {% endfor %}
-      {% for tick in c.x_ticks %}
-      <text x="{{ tick.x }}" y="{{ c.bottom + 16 }}" text-anchor="middle" class="chart-tick">{{ tick.label }}</text>
-      {% endfor %}
-      <text x="{{ (c.left + c.right) / 2 }}" y="{{ c.height - 6 }}" text-anchor="middle" class="chart-axis">Cycles</text>
-      <text x="14" y="{{ (c.top + c.bottom) / 2 }}" text-anchor="middle" class="chart-axis" transform="rotate(-90 14 {{ (c.top + c.bottom) / 2 }})">Price</text>
-      <polyline points="{{ c.points }}" fill="none" stroke="{{ c.color }}" stroke-width="2"/>
-    </svg>
+    <fieldset class="group">
+      <legend>{{ p.detail.name }}</legend>
+      <div class="market-header">
+        <p>Price: {{ "%.2f"|format(p.detail.price) }}</p>
+        <p style="color: {{ p.detail.change_color }}">Change: {{ "%.2f"|format(p.detail.change) }} ({{ "%.2f"|format(p.detail.change_pct) }}%)</p>
+        <p>Owned: {{ p.detail.owned }}</p>
+        <p>Value: {{ "%.2f"|format(p.detail.total_value) }}</p>
+      </div>
+      {% set c = p.detail.chart %}
+      <svg class="price-chart" viewBox="0 0 {{ c.width }} {{ c.height }}" role="img" aria-label="{{ c.title }}">
+        <text x="{{ c.width / 2 }}" y="18" text-anchor="middle" class="chart-title">{{ c.title }}</text>
+        <rect x="{{ c.left }}" y="{{ c.top }}" width="{{ c.right - c.left }}" height="{{ c.bottom - c.top }}" class="chart-frame"/>
+        {% for tick in c.y_ticks %}
+        <text x="{{ c.left - 6 }}" y="{{ tick.y + 4 }}" text-anchor="end" class="chart-tick">{{ tick.label }}</text>
+        {% endfor %}
+        {% for tick in c.x_ticks %}
+        <text x="{{ tick.x }}" y="{{ c.bottom + 16 }}" text-anchor="middle" class="chart-tick">{{ tick.label }}</text>
+        {% endfor %}
+        <text x="{{ (c.left + c.right) / 2 }}" y="{{ c.height - 6 }}" text-anchor="middle" class="chart-axis">Cycles</text>
+        <text x="14" y="{{ (c.top + c.bottom) / 2 }}" text-anchor="middle" class="chart-axis" transform="rotate(-90 14 {{ (c.top + c.bottom) / 2 }})">Price</text>
+        <polyline points="{{ c.points }}" fill="none" stroke="{{ c.color }}" stroke-width="2"/>
+      </svg>
+      {% if p.read_only %}
+      <p class="small muted">Your PDA only shows the market. Trade at the computer in your quarters.</p>
+      {% else %}
+      <form class="trade-form">
+        <div class="trade-line">
+          <label for="shares-input">Shares:</label>
+          <input id="shares-input" name="shares" type="number" min="1" step="1" value="1" list="share-options"
+                 data-share-input data-price="{{ p.detail.price }}" data-credits="{{ p.credits }}" data-owned="{{ p.detail.owned }}">
+          <datalist id="share-options">{% for n in p.share_options %}<option value="{{ n }}">{% endfor %}</datalist>
+          <span data-share-total>Total: 0.00</span>
+        </div>
+        <div class="trade-line">
+          <button type="button" class="btn btn-small" data-set-input="shares-input" data-value="{{ p.detail.max_buy }}">Max Buy ({{ p.detail.max_buy }})</button>
+          <button type="button" class="btn btn-small" data-set-input="shares-input" data-value="{{ p.detail.max_sell }}">Max Sell ({{ p.detail.max_sell }})</button>
+          <button type="button" class="btn btn-buy" data-action="panel.buy" data-args="{}" data-share-buy>Buy</button>
+          <button type="button" class="btn btn-sell" data-action="panel.sell" data-args="{}" data-share-sell>Sell</button>
+        </div>
+      </form>
+      {% endif %}
+    </fieldset>
     {% endif %}
   </div>
 </div>

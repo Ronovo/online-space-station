@@ -1,0 +1,113 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set t = facts.threats %}
+{% block page %}
+<p>
+  Career rounds and Antagonist single rounds have one to {{ t.MAX_THREATS }} antagonists, each a different kind, and
+  each starting at its own time. Peaceful rounds have none.
+</p>
+
+<h2>How a threat plays out</h2>
+<ul>
+  <li><b>In secret</b>: at first you only see what it does: a sabotaged system, crew found hurt, missing credits.
+    Some antagonists are crew members in disguise, and nothing says who.</li>
+  <li><b>Revealed</b>: after a few moves it attacks someone in the open. Now everyone knows who or what it is. A crew
+    member who turns out to be one leaves the crew.</li>
+  <li><b>Hunted</b>: a revealed antagonist roams the hallways. The status bar says where it was last seen. If it is
+    on your hallway tile, it attacks you. Rooms are safe.</li>
+  <li><b>Dealt with</b>: you can beat it in a fight, or the crew can. Security Guards and the Captain go after a
+    revealed antagonist on their own and wear it down, getting hurt in the process.</li>
+</ul>
+
+<h2>Catching one before it strikes</h2>
+<ul>
+  <li>Every move an antagonist makes goes down in the <b>Incident Log</b>, at the Security Station and the Captain's
+    Station: when, where, what happened, and which crew were away from their posts at the time.</li>
+  <li>An antagonist hiding as a crew member has to leave its post to do anything, so it is on that list every time.
+    Whoever is away for every incident is your suspect. The longer you wait the shorter the list, and after
+    {{ t.REVEAL_AFTER_RANGE[0] }} or {{ t.REVEAL_AFTER_RANGE[1] }} moves it reveals itself anyway.</li>
+  <li>Put a warrant out for them and arrest them, or let a Security Guard find them. Jailing the right crew member
+    ends that antagonist on the spot, and they are held for Central Command. See {{ w.link("Security and Jail") }}.</li>
+  <li>An antagonist from outside the crew can't be caught this way, and neither can one that is too hurt to move. If
+    an antagonist is secretly one of the crew, jailing that crew member catches it.</li>
+</ul>
+
+<h2>What they are after</h2>
+<p>Every antagonist has an objective, and the shift report says whether it was achieved or foiled.</p>
+<ul>
+  {% for kind, objective in t.OBJECTIVES.items() %}
+  <li>Out to {{ objective.text.format(target="one named crew member") }}: needs {{ objective.goal }} {{ "credits stolen" if kind == "steal" else "moves that count" }}.</li>
+  {% endfor %}
+  <li>One that is after a crew member goes for them whenever it can reach them.</li>
+</ul>
+
+<h2>The alert level</h2>
+<p>
+  Every move a loose antagonist makes raises the threat, and one that has revealed itself counts for more. The alert
+  follows it:
+</p>
+<table class="wiki-table">
+  <thead><tr><th>Alert</th><th>Threat</th></tr></thead>
+  <tbody>
+    {% for needed, level, _ in t.ALERT_LEVELS|reverse %}
+    <tr><td>{{ level }}</td><td>{{ needed }} or more</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<p>
+  An antagonist that has been dealt with no longer counts, so the alert falls back. Each change of level goes in the
+  station log while the Communication Array is up. At Red the Captain crew member calls the shuttle. If you are the
+  Captain, that call is yours to make. See {{ w.link("Rounds and the Shuttle") }}.
+</p>
+
+<h2>The antagonists</h2>
+<table class="wiki-table">
+  <thead><tr><th>Antagonist</th><th>Hides as crew</th><th>Health</th><th>Hits for</th><th>Can be handcuffed</th><th>Out to</th></tr></thead>
+  <tbody>
+    {% for name, threat in t.THREAT_TYPES.items() %}
+    <tr><td>{{ name }}</td><td>{{ "Yes" if threat.crew else "No" }}</td><td>{{ threat.hp }}</td>
+      <td>{{ threat.attack[0] }}-{{ threat.attack[1] }}{% if threat.extra %}, plus {{ threat.extra[0] }}{% endif %}</td>
+      <td>{{ "Yes" if threat.humanoid else "No" }}</td>
+      <td>{{ t.OBJECTIVES[threat.objective].text.format(target="a crew member")|capitalize }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<ul>
+  <li>The Traitor and the Rogue Bot sabotage station systems. The Traitor and the Changeling also get innocent crew
+    wanted.</li>
+  <li>Sabotage can also cut the Combustion Engine's coolant line. See {{ w.link("Engineering") }}.</li>
+  <li>A Traitor passing as crew who can work the Atmospherics station may pump
+    {{ t.CONTAMINANTS|join(" or ") }} into the life support reservoir. See {{ w.link("Life Support") }}.</li>
+  <li>The Traitor may leave a transfer valve bomb ticking in a room, with {{ facts.bombs.PLANTED_TIMER }} seconds on
+    it. The station is told where. Pick it up and disarm it before it goes off. See {{ w.link("Atmospherics") }}.</li>
+  <li>The Vampire, the Alien and the Space Pirate leave crew badly hurt. The Space Pirate also takes credits from
+    you.</li>
+  <li>The Changeling poisons crew. The Cultist and the Wizard burn them and dim the lights. The Rogue Bot dims the
+    lights too. The Engineer brings dimmed lights back up and reports the tampering to Security, and a Security
+    Guard's PDA gets word of it. See {{ w.link("Engineering") }}.</li>
+</ul>
+
+<h2>Fighting one</h2>
+<p>
+  The fight works like any other. See {{ w.link("Combat and Weapons") }}. Lose it and you die, which ends the round.
+</p>
+
+<h2>When the shuttle comes</h2>
+<ul>
+  <li>Once the shuttle docks, an antagonist in the open stops roaming and makes for the Departures door. It still
+    attacks you if it catches you in a hallway on the way.</li>
+  <li>It is aboard only if it has reached that door when the shuttle leaves. One hiding as a crew member is aboard
+    only if that crew member boarded. One from outside that never showed itself stays on the station. Any that
+    don't make it are left behind, and the shift report says so.</li>
+  <li>Each antagonist aboard makes its move in turn, and it goes for anyone aboard: you or any crew member, picked
+    at random.</li>
+  <li>If it goes for a crew member, it kills them. The rest of the crew fight back: it loses
+    {{ (t.SHUTTLE_CREW_HIT * 100)|round|int }}% of its full health for every crew member aboard who can fight, up
+    to {{ (t.SHUTTLE_CREW_HIT_MAX * 100)|round|int }}%. Then it picks again. Enough crew bring it down before it
+    ever reaches you.</li>
+  <li>If it goes for you, you fight it with whatever health it has left. If you were the first it went for, that
+    is all of it.</li>
+  <li>So a full shuttle is the safest place to be: it is less likely to pick you, and every crew member it goes
+    through costs it more.</li>
+</ul>
+{% endblock %}

@@ -1,5 +1,5 @@
 {% import "game/_ui.html" as ui %}
-<h2>Access Control</h2>
+{{ ui.panel_header("Access Control") }}
 <fieldset class="group">
   <legend>Pending Requests</legend>
   {% if p.request %}
@@ -9,10 +9,9 @@
   {% endif %}
 </fieldset>
 {{ ui.feedback(p.feedback) }}
+{% if p.request %}
 <div class="button-row">
-  {{ ui.close_btn() }}
-  {% if p.request %}
-    {{ ui.btn("Deny", "panel.deny") }}
-    {{ ui.btn("Approve", "panel.approve") }}
-  {% endif %}
+  {{ ui.btn("Deny", "panel.deny") }}
+  {{ ui.btn("Approve", "panel.approve") }}
 </div>
+{% endif %}

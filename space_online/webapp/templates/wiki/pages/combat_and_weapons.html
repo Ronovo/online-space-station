@@ -1,0 +1,55 @@
+{% extends "wiki/page.html" %}
+{% import "wiki/_macros.html" as w with context %}
+{% set k = facts.combat %}
+{% block page %}
+<p>
+  Fights are turn-based, and once one starts you can't walk away from it. You fight the monsters on a
+  {{ w.link("Mining") }} trip and the station's {{ w.link("Antagonists") }}.
+</p>
+
+<h2>Your turn</h2>
+<ul>
+  <li><b>Attack</b>: hits for the attack of the stronger item in your hands. Bare hands hit for
+    {{ k.UNARMED_ATTACK }}, and something that isn't a weapon for {{ k.IMPROVISED_ATTACK }}. A second weapon adds
+    nothing, so the other hand is better spent on something that blocks.</li>
+  <li><b>Block</b>: you don't attack, but this turn's hit is cut by a further {{ k.BRACE_BLOCK }}%, and your next
+    Attack is a counter-attack for {{ k.COUNTER_MULTIPLIER }} times the damage.</li>
+  <li><b>Stun</b>, with a Stun Baton in hand: the enemy loses its next turns. The baton then takes
+    {{ k.STUN_RECHARGE_TURNS }} turns to recharge.</li>
+  <li><b>Cuff</b>, with Handcuffs on you: arrests a stunned enemy and ends the fight at once. It only works on
+    antagonists that can be handcuffed.</li>
+  <li><b>Hands</b>: change what you are holding. It doesn't cost a turn. See {{ w.link("Items and Hands") }}.</li>
+</ul>
+
+<h2>The enemy's turn</h2>
+<ul>
+  <li>It hits one of your limbs. Some enemies also burn or poison. See {{ w.link("Health") }}.</li>
+  <li>Aboard the crew shuttle in flight it doesn't wait for you: if you don't act, it strikes every
+    {{ k.TRANSIT_ENEMY_TURN_SECONDS }} seconds. See {{ w.link("Rounds and the Shuttle") }}.</li>
+  <li>Anything in your hands with a block value stops that share of every hit, up to {{ k.MAX_BLOCK }}%.</li>
+  <li>If your overall health falls below {{ k.DEFEAT_HEALTH }}%, you have lost. Against a monster the rescue drone
+    flies you home. Against an antagonist you die.</li>
+</ul>
+
+<h2>Weapons</h2>
+<table class="wiki-table">
+  <thead><tr><th>Weapon</th><th>Attack</th></tr></thead>
+  <tbody>
+    {% for name, attack in facts.weapons %}
+    <tr><td>{{ name }}</td><td>{{ attack }}</td></tr>
+    {% endfor %}
+    <tr><td>Pickaxe</td><td>{{ facts.mining.MINING_ITEMS.pickaxe.attributes.attack }}</td></tr>
+    <tr><td>Chainsaw</td><td>{{ facts.botany.BOTANY_ITEMS.chainsaw.attributes.attack }}</td></tr>
+    <tr><td>Acid Flask (one use)</td><td>{{ facts.chemicals.CHEMISTRY_ITEMS.acid_flask.attributes.attack }}</td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>The fabricator in {{ w.link("Engineering") }} makes these for anyone, out of ore from the station stores:
+    {{ facts.fabricator.Weapon|join(", ") }}.</li>
+  <li>The Armory at the Security Station issues: {{ facts.armory|join(", ") }}. See {{ w.link("Security and Jail") }}.</li>
+  <li>A transfer valve bomb is the other way to deal with a revealed antagonist: set one off on its hallway tile and
+    the blast takes a share of its health, or destroys it if the blast is Large. With one loose, that is no crime. See
+    {{ w.link("Atmospherics") }}.</li>
+  <li>There is very little armour. The Blast Shield from the Mining Bay lockers is the only thing that blocks.</li>
+</ul>
+{% endblock %}

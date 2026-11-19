@@ -17,7 +17,7 @@
       <input type="password" name="confirm_password" autocomplete="new-password" minlength="6" maxlength="128" required>
     </label>
     {% include "_security_fields.html" %}
-    <button class="btn" type="submit">Create Account</button>
+    <button class="btn btn-primary" type="submit">Create Account</button>
   </form>
   <p class="muted">Already registered? <a href="{{ url_for('login') }}">Log in</a></p>
 </section>

@@ -1,0 +1,47 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Artifact Bench") }}
+<div class="two-columns">
+  <fieldset class="group">
+    <legend>On the Bench</legend>
+    <div class="listbox short" data-scroll-key="bench">
+      {% for artifact in p.artifacts %}
+        {{ ui.row(artifact.label, "panel.select_artifact", {"index": artifact.index}, artifact.index == p.selected) }}
+      {% else %}
+        <div class="list-item">The bench is empty. Artifacts come up from the Mining Bay and from Central Command.</div>
+      {% endfor %}
+    </div>
+  </fieldset>
+  <fieldset class="group">
+    <legend>Test Rig</legend>
+    <div class="toggle-row">
+      {% for key, name in p.devices %}
+        {{ ui.btn(name, "panel.set_device", {"name": key}, "btn-toggle btn-small" ~ (" active" if p.device == key else "")) }}
+      {% endfor %}
+    </div>
+    <div class="slider-row">
+      <label for="rig-strength">Strength</label>
+      <input id="rig-strength" type="range" min="1" max="{{ p.max_strength }}" value="{{ p.strength }}" data-action="panel.set_strength">
+      <output for="rig-strength">{{ p.strength }}</output>
+    </div>
+    <div class="button-row">{{ ui.btn("Run Test", "panel.test", cls="btn-primary") }}</div>
+  </fieldset>
+</div>
+<fieldset class="group">
+  <legend>Result</legend>
+  <p class="result">{{ p.result }}</p>
+</fieldset>
+<form class="form-stack narrow-form" data-action="panel.file_analysis">
+  <label>What it is
+    <select id="file-kind" name="kind">
+      {% for key, name in p.kinds %}<option value="{{ key }}"{% if p.filed.kind == key %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+  </label>
+  <label>What sets it off
+    <select id="file-device" name="device">
+      {% for key, name in p.devices %}<option value="{{ key }}"{% if p.filed.device == key %} selected{% endif %}>{{ name }}</option>{% endfor %}
+    </select>
+  </label>
+  <div class="button-row">
+    <button type="submit" class="btn">File Analysis</button>
+  </div>
+</form>

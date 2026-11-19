@@ -1,0 +1,33 @@
+{% import "game/_ui.html" as ui %}
+{{ ui.panel_header("Test Range") }}
+<p class="center">Run a Transfer Valve Bomb on the range to see what it would do. Nothing on the station is harmed.</p>
+<fieldset class="group">
+  <legend>Bombs You Carry</legend>
+  <div class="listbox short" data-scroll-key="range-bombs">
+    {% for bomb in p.bombs %}
+      {{ ui.row(bomb.label, "panel.select_bomb", {"index": bomb.index}, bomb.index == p.selected) }}
+    {% else %}
+      <div class="list-item">You carry no Transfer Valve Bomb.</div>
+    {% endfor %}
+  </div>
+  <div class="button-row">
+    {{ ui.btn("Run Test", "panel.run_test", cls="btn-primary", disabled=p.selected is none) }}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>Central Command's Bounties</legend>
+  <div class="detail-grid">
+    {% for bounty in p.bounties %}
+      <span>{{ bounty.size }}: {{ bounty.credits }} credits{{ " (paid this shift)" if bounty.paid }}</span>
+    {% endfor %}
+  </div>
+</fieldset>
+<fieldset class="group">
+  <legend>Range Log</legend>
+  {% for line in p.log %}
+    <p>{{ line }}</p>
+  {% else %}
+    <p>No tests run yet.</p>
+  {% endfor %}
+</fieldset>
+{{ ui.feedback(p.feedback) }}

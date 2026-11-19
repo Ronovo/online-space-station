@@ -1,46 +1,45 @@
 {% import "game/_ui.html" as ui %}
-<h1>Character Sheet</h1>
+{{ ui.panel_header("Character Sheet") }}
 <div class="sheet">
-  <p>Name: {{ p.name }}</p>
-  <p>Job: {{ p.job }}</p>
-  <p>Department: {{ p.department }}</p>
-  <p>Credits: {{ "%.2f"|format(p.credits) }}</p>
+  <div class="character-summary">
+    <div><span class="label">Name</span> {{ p.name }}</div>
+    <div><span class="label">Job</span> {{ p.job }}</div>
+    <div><span class="label">Department</span> {{ p.department }}</div>
+    <div><span class="label">Credits</span> {{ "%.2f"|format(p.credits) }}</div>
+  </div>
   <p style="color: {{ p.alcohol_color }}">Alcohol: {{ "%.1f"|format(p.alcohol) }}%</p>
   {% if p.alcohol >= 25 %}<p class="hint" style="color: orange">Seek medical treatment to sober up.</p>{% endif %}
+  <p>{% for need in p.needs %}<span style="color: {{ need.color }}">{{ need.name }}: {{ "%.0f"|format(need.value) }}%</span>{{ " &nbsp; "|safe if not loop.last }}{% endfor %}</p>
 
   <div class="button-row left">
-    {{ ui.btn("View Inventory (" ~ p.inventory_count ~ " items)", "panel.inventory") }}
-    {{ ui.btn("View Stock Holdings (" ~ p.holdings_count ~ ")", "panel.holdings") }}
-    {{ ui.btn("View Notes (" ~ p.notes_count ~ ")", "panel.notes") }}
+    {{ ui.btn("View Inventory (" ~ p.inventory_count ~ " items)", "panel.inventory", cls="btn-small") }}
+    {{ ui.btn("View Stock Holdings (" ~ p.holdings_count ~ ")", "panel.holdings", cls="btn-small") }}
+    {{ ui.btn("View Notes (" ~ p.notes_count ~ ")", "panel.notes", cls="btn-small") }}
   </div>
 
-  <p>Overall Damage:</p>
-  <div class="damage-list">
-    {% for d in p.damage %}
-    <div class="damage-row">
-      <span class="damage-name">{{ d.name }}:</span>
-      <span style="color: {{ d.color }}">{{ "%.1f"|format(d.value) }}%</span>
-      {% if d.effect %}<span class="italic" style="color: {{ d.color }}"> - {{ d.effect }} effects</span>{% endif %}
-    </div>
-    {% endfor %}
-  </div>
-
-  <p>Limb Health (Blunt Damage):</p>
-  <div class="limb-grid">
-    {% for limb in p.limbs %}
-    <span style="color: {{ limb.color }}">{{ limb.name }}: {{ limb.health }}%</span>
-    {% endfor %}
-  </div>
-
-  <div class="totals">
+  <div class="sheet-health">
     <div>
-      <p>Non-Limb Health:</p>
-      <p class="total-value" style="color: {{ p.damage_health_color }}">{{ "%.1f"|format(p.damage_health) }}%</p>
+      <p>Overall Damage:</p>
+      <div class="damage-list">
+        {% for d in p.damage %}
+        <div class="damage-row">
+          <span class="damage-name">{{ d.name }}:</span>
+          <span style="color: {{ d.color }}">{{ "%.1f"|format(d.value) }}%</span>
+          {% if d.effect %}<span class="italic" style="color: {{ d.color }}"> - {{ d.effect }} effects</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <p style="color: {{ p.damage_health_color }}">Non-Limb Health: {{ "%.1f"|format(p.damage_health) }}%</p>
+      {% if p.tank_kpa is not none %}<p>Breathing from: Gas Tank ({{ "%.0f"|format(p.tank_kpa) }} kPa)</p>{% endif %}
     </div>
     <div>
-      <p>Limb Health:</p>
-      <p class="total-value" style="color: {{ p.limb_health_color }}">{{ "%.1f"|format(p.limb_health) }}%</p>
+      <p>Limb Health (Blunt Damage):</p>
+      <div class="limb-grid">
+        {% for limb in p.limbs %}
+        <span style="color: {{ limb.color }}">{{ limb.name }}: {{ limb.health }}%</span>
+        {% endfor %}
+      </div>
+      <p style="color: {{ p.limb_health_color }}">Limb Health: {{ "%.1f"|format(p.limb_health) }}%</p>
     </div>
   </div>
 </div>
-<div class="button-row">{{ ui.close_btn(cls="btn-wide") }}</div>

@@ -1,0 +1,13 @@
+{% import "game/_ui.html" as ui %}
+{% call ui.panel_header(p.name, "Close", "panel.close_reading") %}
+  {% if p.editable %}{{ ui.btn("Edit", "panel.edit", cls="btn-small") }}{% endif %}
+  {% if p.back %}{{ ui.btn("Back", "panel.back", cls="btn-small") }}{% endif %}
+{% endcall %}
+{% set text = wiki_file_text(p.guide) if p.guide else p.text %}
+{% set scroll_key = "file-text:" ~ ("guide/" if p.guide else "home/") ~ p.name %}
+{% if p.name.endswith(".md") %}
+<div class="text-block wiki-page" data-scroll-key="{{ scroll_key }}">{{ render_markdown(text, p.links) }}</div>
+{% else %}
+<div class="text-block file-text" data-scroll-key="{{ scroll_key }}">{{ text }}</div>
+{% endif %}
+{% if p.editable %}<div class="button-row">{{ ui.btn("Delete", "panel.remove") }}</div>{% endif %}

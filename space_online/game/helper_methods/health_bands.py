@@ -15,9 +15,11 @@ def limb_label(limb):
 
 
 def health_band(value):
-    """(status, colour) for a health percentage, where 100 is unhurt."""
-    if value > 75:
+    """(status, colour) for a health percentage, where 100 is unhurt. Only 100 is Healthy."""
+    if value >= 100:
         return "Healthy", "green"
+    if value > 75:
+        return "Minor injuries", "green"
     if value > 40:
         return "Injured", "yellow"
     return "Critical", "red"
@@ -42,6 +44,19 @@ def overall_health(member):
     """Average limb health, scaled down by the average damage taken: 100 is unhurt."""
     damage = member["damage"]
     return average_limb_health(member) * (1 - sum(damage.values()) / (len(damage) * 100))
+
+
+def is_incapacitated(member):
+    """Whether a crew member is too badly hurt to work or move: their overall health is in the Critical band."""
+    return health_band(overall_health(member))[0] == "Critical"
+
+
+def heal_fully(member):
+    """Restore every limb and clear every damage type."""
+    for limb in member["limbs"]:
+        member["limbs"][limb] = 100
+    for damage_type in member["damage"]:
+        member["damage"][damage_type] = 0
 
 
 def change_limb(member, limb, amount):
